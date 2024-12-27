@@ -1,0 +1,85 @@
+/* resume.css */
+
+/* General Layout & Body */
+body {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 2rem auto;
+	padding: 2rem;
+  max-width: 850px;
+  color: #333;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: bold;
+}
+
+h1 {
+  font-size: 1.5em;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 0.3em;
+}
+
+h2 {
+  font-size: 1.3em;
+  color: #444;
+}
+
+h3 {
+  font-size: 1.1em;
+  color: #555;
+}
+
+/* Paragraphs & Lists */
+p {
+  margin-bottom: 1em;
+}
+
+ul, ol {
+  margin: 0 0 1em 1.5em;
+  padding: 0;
+}
+
+li {
+  margin-bottom: 0.5em;
+}
+
+/* Contact / Header Info */
+header, .resume-header {
+  margin-bottom: 1.5rem;
+}
+
+.resume-header p {
+  margin: 0.2em 0;
+}
+
+/* Sections */
+section {
+  margin-bottom: 2em;
+}
+
+/* Links */
+a {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Table (if any) */
+table {
+  border-collapse: collapse;
+  margin-bottom: 1em;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 0.5em;
+}
+
