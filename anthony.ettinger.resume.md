@@ -6,85 +6,89 @@
 - **LinkedIn**: [linkedin.com/in/chovy](https://linkedin.com/in/chovy)  
 - **Location**: Los Gatos, CA USA (US Citizen, Native English)
 
-## Executive Summary
+## Professional Summary
 
-Seasoned **AI-Enhanced Software Developer** and technical co-founder adept at leveraging **AI-driven coding tools** to accelerate feature development, refine user interfaces, and streamline DevOps. Proficient in **Node.js, Svelte, React, and Docker**, with a keen interest in **prompt engineering** and integrating conversational AI assistants into daily workflows. Experienced leading remote engineering teams, designing scalable architectures, and delivering production-ready applications across diverse industries.
+Independent Contractor @ Profullstack — Full‑stack JavaScript, REST APIs, and front‑end engineering. I design and ship pragmatic, production‑ready solutions, leveraging AI‑augmented workflows (Cursor, Copilot, ChatGPT) to accelerate prototyping, improve code quality, and reduce cycle time. Proven technical leadership across greenfield products, developer tooling, and CI/CD.
 
 ---
 
-## Key Skills & Competencies
+## Areas of Expertise
 
-- **AI-Augmented Development**: Proficient in using conversational AI assistants (e.g., Cursor, ChatGPT, GitHub Copilot) to generate, review, and refactor code efficiently.  
-- **Prompt Engineering**: Skilled at crafting targeted prompts to extract high-quality code snippets and troubleshooting suggestions from AI models.  
-- **Full-Stack JavaScript**: Expert in Node.js, Svelte, React, and Vanilla JS for front-end/back-end development.  
-- **DevOps & CI/CD**: Experience with Docker, cloud deployments, and automated pipelines for seamless integration and delivery.  
-- **API & Microservices**: Skilled in RESTful API design, microservices architecture, and cross-platform integrations.  
-- **Architecture & Leadership**: Track record of spearheading new product features, leading technical teams, and defining strategic technology roadmaps.
+- AI‑augmented development and prompt engineering for code generation, refactoring, and reviews  
+- RESTful API design, microservices integration, and cross‑platform web/mobile delivery  
+- Front‑end architecture with Svelte/SvelteKit, React, and vanilla JS/CSS  
+- Back‑end services with Node.js (Express/Fastify), authentication, and data modeling  
+- DevOps (Docker, GitHub Actions), cloud deployments, and automated CI/CD pipelines  
+- Technical leadership: roadmap definition, mentoring, code quality, and standards
+
+---
+
+## Technical Skills
+
+- Languages: JavaScript/Node.js, HTML, CSS  
+- Front‑end: Svelte/SvelteKit, React, vanilla JS, accessibility (a11y)  
+- Back‑end: Express, Fastify, REST APIs, Webhooks  
+- Data & Storage: MongoDB, PostgreSQL, JSON/CSV pipelines  
+- Infra/DevOps: Docker, GitHub Actions, Ubuntu, NGINX, pm2  
+- Testing/Quality: Chai, Karma, Protractor; component patterns; E2E/testable UIs  
+- Web3: Polygon, Ethers.js/web3, NFT utilities, wallet integrations  
+- AI/LLM Tooling: Cursor, GitHub Copilot, ChatGPT (code generation, review, and troubleshooting)
 
 ---
 
 ## Work Experience
 
-### admajesty | Remote  
-**Chief Technology Officer** (Sep 2024 – Present)  
-- Manage development team and designer to build out marketing-based MVPs.  
-- **Skills**: Technical Leadership, Leading Development Teams, Technology Management, Internet Software, Server-Side JavaScript, Technology Leadership
-
-### Tomahawk Edison Sciences Inc. | Remote  
-**Engineering Lead, Commercial Solutions** (Apr 2024 – Sep 2024)  
-- **AI-Augmented Prototyping**: Integrated AI-assisted coding workflows (e.g., ChatGPT) to rapidly prototype a satellite tracking system based on NASA’s worldwind.js library.  
-- **Tauri App Development**: Led the creation of **Sentinel Desktop** (satellite tracker) using Node.js, Svelte, and Tauri, ensuring robust performance on multiple platforms.
-
-### Skatespot, Inc. | Equity-only part-time  
-**Co-founder, Chief Technology Officer** (Apr 2021 – Sep 2024)  
-- **Strategic Tech Roadmapping**: Defined technology stack and architectural strategies for [Skatespot.com](https://skatespot.com), leveraging **Deno** and React Native.  
-- **API & Infrastructure**: Managed APIs and **MongoDB** deployments on Ubuntu, integrating DevOps best practices to streamline development.  
-- **Leadership & Mentorship**: Oversaw a small dev team; introduced AI-based coding guidelines to speed up feature development and code reviews.
-
 ### Profullstack, Inc. | Remote  
-**Founder, Independent Contractor** (Mar 2018 – May 2024)  
-- **JavaScript & Blockchain**: Consulted on JS projects and REST APIs with a focus on **blockchain front-end** development.  
-- **CTO Experience**: Co-founded **avenasea.com**, a corporate travel app; led the team in adopting AI tools for faster prototyping.  
-- **NFT & Crypto Projects**: Founded **husko.money**, an NFT/memecoin project on Polygon mainnet, utilizing AI-driven workflows for smart contract scaffolding.  
-- **DevOps**: Implemented Docker instances with **CI/CD** for automated testing and deployments, occasionally integrating AI suggestions for container optimizations.
+Founder, Independent Contractor (Mar 2018 – Present)  
+- Delivered JavaScript consulting and REST APIs with a focus on blockchain‑aware front‑ends and integrations.  
+- Co‑founded avenasea.com (corporate travel); acted as interim CTO; introduced AI‑driven prototyping to speed feature delivery.  
+- Founded husko.money (Polygon NFT/memecoin), using AI‑assisted scaffolding for contracts, front‑end, and automation.  
+- Implemented Dockerized CI/CD with automated testing and streamlined deployments.  
+- Tooling: Node.js, Svelte/SvelteKit, React, Express/Fastify, Ethers.js/web3, Docker, GitHub Actions.
+
+### Skatespot, Inc. | Equity‑only, part‑time  
+Co‑founder, Chief Technology Officer (Apr 2021 – Present)  
+- Defined technology stack and architecture for Skatespot.com using Deno and React Native.  
+- Managed APIs and MongoDB on Ubuntu; introduced DevOps best practices to improve reliability.  
+- Mentored a small dev team; established AI‑aided coding guidelines for faster code reviews and feature work.  
+- Tooling: Deno, React Native, MongoDB, Ubuntu, NGINX, pm2, GitHub.
 
 ### Prognos Health, Inc. | Remote  
-**Principal Engineer** (Mar 2021 – Jan 2022)  
-- **Svelte Kit & Vanilla CSS**: Built a next-gen underwriting UI, leveraging AI-based code generation to accelerate layout creation and refactor cycles.  
-- **Cross-Functional Collaboration**: Coordinated with product, design, and data science teams for requirements gathering and rapid iteration.  
-- **Code Quality & Validation**: Employed conversational AI (like Copilot and ChatGPT) to identify potential bugs before formal QA, maintaining high reliability.
+Principal Engineer (Mar 2021 – Jan 2022)  
+- Built a next‑gen underwriting UI with SvelteKit and vanilla CSS; partnered closely with product/design/data science.  
+- Established component standards and accessibility checks; used conversational AI to accelerate refactors and edge‑case reviews.  
+- Tooling: SvelteKit, Node.js, REST, Vite, Vanilla JS/CSS.
 
 ### IBM | Remote  
-**Senior Software Engineer** (Nov 2014 – Mar 2018)  
-- **API Connect Editor**: Engineered key features of the platform, including the base application rewrite to improve performance and developer experience.  
-- **React & i18n**: Implemented robust **ReactJS** components with internationalization/localization support.  
-- **UI Testing**: Leveraged **Protractor, Karma, and Chai** for thorough UI test coverage, incorporating AI-driven suggestions to streamline test creation.
+Senior Software Engineer (Nov 2014 – Mar 2018)  
+- Shipped key features for API Connect Editor, including a base application rewrite that improved performance and developer experience.  
+- Implemented robust React components with i18n/l10n support.  
+- Ensured high UI test coverage with Protractor, Karma, and Chai.  
+- Tooling: React, JavaScript, i18n, Protractor, Karma, Chai.
 
 ---
 
-## Projects
+## Selected Projects
 
-- **[Primate.js](https://primatejs.com)** – Open-source polymorphic development platform.  
-- **[FastestEngineer](https://fastest.engineer)** – Premium SaaS boilerplate built on Svelte and Primate.js.  
-- **[My GitHub](https://github.com/ralyodio)** – Personal GitHub account showcasing various AI experiments and JS projects.  
-- **[Profullstack on GitHub](https://github.com/profullstack)** – Profullstack organization GitHub.
+- Primate.js — Open‑source polymorphic development platform. Role: contributor/advocate.  
+- FastestEngineer — Premium SaaS boilerplate built on Svelte and Primate.js.  
+- My GitHub — Personal account with AI experiments and JS projects: https://github.com/ralyodio  
+- Profullstack on GitHub — Organization projects: https://github.com/profullstack
 
 ---
 
 ## Education
 
-**San Diego State University**  
-Bachelor of Science, Business Administration (1993 – 1998)
+San Diego State University — B.S., Business Administration (1993–1998)
 
 ---
 
-## Highlights & Additional Notes
+## Additional Highlights
 
-- **AI Tools**: Regularly use Cursor, GitHub Copilot, and ChatGPT to assist in writing and reviewing JavaScript, Node.js, and Svelte code.  
-- **Collaboration**: Known for mentoring teams on **AI-based coding practices**, refining prompt strategies, and driving organizational adoption of generative AI tools.  
-- **Remote-First Mindset**: Thrives in distributed teams, leveraging asynchronous communication, agile methodologies, and AI-driven collaboration tools.
+- AI‑Driven Collaboration: Daily use of Cursor, Copilot, and ChatGPT to write, review, and maintain high‑quality JavaScript/Node/Svelte code.  
+- Mentorship & Standards: Guides teams in prompt strategy, AI‑assisted reviews, component patterns, and maintainable architectures.  
+- Remote‑first: Strong async communication, agile delivery, and documentation practices across distributed teams.
 
 ---
 
-*Last updated: December 2024*
-
+Last updated: August 2025
