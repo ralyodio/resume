@@ -1,15 +1,23 @@
 {
   "name": "resume",
   "version": "1.0.0",
-  "main": "index.js",
+  "type": "module",
+  "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "node src/index.js",
+    "test": "mocha tests/**/*.test.js",
+    "generate": "./resume.sh"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["resume", "pdf", "html", "generator"],
+  "author": "Anthony Ettinger",
   "license": "ISC",
-  "description": "",
+  "description": "Modern resume generator that converts markdown to compelling HTML and PDF",
   "dependencies": {
-    "puppeteer": "^23.11.1"
+    "puppeteer": "^23.11.1",
+    "marked": "^14.1.2"
+  },
+  "devDependencies": {
+    "mocha": "^10.7.3",
+    "chai": "^5.1.1"
   }
 }

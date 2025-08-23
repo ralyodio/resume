@@ -1,85 +1,356 @@
-/* resume.css */
+/* Resume CSS - Matching resume.example.png layout */
 
-/* General Layout & Body */
-body {
-  font-family: Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.4;
-  margin: 2rem auto;
-	padding: 2rem;
-  max-width: 850px;
-  color: #333;
-}
-
-/* Headings */
-h1, h2, h3, h4, h5, h6 {
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
-  font-weight: bold;
-}
-
-h1 {
-  font-size: 1.5em;
-  border-bottom: 1px solid #ccc;
-  padding-bottom: 0.3em;
-}
-
-h2 {
-  font-size: 1.3em;
-  color: #444;
-}
-
-h3 {
-  font-size: 1.1em;
-  color: #555;
-}
-
-/* Paragraphs & Lists */
-p {
-  margin-bottom: 1em;
-}
-
-ul, ol {
-  margin: 0 0 1em 1.5em;
+* {
+  margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
-li {
-  margin-bottom: 0.5em;
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11pt;
+  line-height: 1.4;
+  color: #333;
+  max-width: 8.5in;
+  margin: 0 auto;
+  padding: 0.75in;
+  background: white;
 }
 
-/* Contact / Header Info */
-header, .resume-header {
-  margin-bottom: 1.5rem;
-}
-
-.resume-header p {
-  margin: 0.2em 0;
-}
-
-/* Sections */
-section {
+/* Header */
+.header {
   margin-bottom: 2em;
 }
 
-/* Links */
-a {
-  color: #0066cc;
+.header h1 {
+  font-size: 2.5em;
+  font-weight: 900;
+  color: #000;
+  margin-bottom: 0.2em;
+  letter-spacing: 0.5px;
+}
+
+.header .subtitle {
+  font-size: 1.1em;
+  color: #666;
+  margin-bottom: 1em;
+  font-weight: 400;
+}
+
+.contact-info {
+  display: flex;
+  gap: 2em;
+  flex-wrap: wrap;
+  font-size: 0.95em;
+}
+
+.contact-info span {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  color: #555;
+}
+
+.contact-info a {
+  color: #555;
   text-decoration: none;
 }
 
-a:hover {
-  text-decoration: underline;
+.contact-info a:hover {
+  color: #000;
 }
 
-/* Table (if any) */
-table {
-  border-collapse: collapse;
+/* Section Headers */
+.section {
+  margin-bottom: 2.5em;
+}
+
+.section h2 {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: #000;
+  text-transform: uppercase;
+  letter-spacing: 1px;
   margin-bottom: 1em;
+  padding-bottom: 0.3em;
+  border-bottom: 2px solid #000;
 }
 
-th, td {
-  border: 1px solid #ddd;
-  padding: 0.5em;
+/* Experience Entries */
+.experience-entry {
+  margin-bottom: 2em;
 }
 
+.job-header {
+  margin-bottom: 0.5em;
+}
+
+.job-title {
+  font-size: 1.05em;
+  font-weight: 600;
+  color: #000;
+  margin-bottom: 0.2em;
+}
+
+.company-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5em;
+  font-size: 0.95em;
+}
+
+.company-name {
+  font-weight: 500;
+  color: #555;
+}
+
+.job-duration {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.job-location {
+  color: #666;
+  font-size: 0.9em;
+  margin-left: 1em;
+}
+
+.job-description {
+  color: #444;
+  line-height: 1.5;
+  margin-bottom: 0.8em;
+}
+
+.job-achievements {
+  list-style: none;
+  padding-left: 0;
+}
+
+.job-achievements li {
+  position: relative;
+  padding-left: 1.2em;
+  margin-bottom: 0.4em;
+  line-height: 1.4;
+}
+
+.job-achievements li:before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #000;
+  font-weight: bold;
+}
+
+/* Education */
+.education-entry {
+  margin-bottom: 1.5em;
+}
+
+.degree-title {
+  font-size: 1.05em;
+  font-weight: 600;
+  color: #000;
+  margin-bottom: 0.2em;
+}
+
+.school-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95em;
+}
+
+.school-name {
+  font-weight: 500;
+  color: #555;
+}
+
+.education-duration {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.education-location {
+  color: #666;
+  font-size: 0.9em;
+  margin-left: 1em;
+}
+
+/* Key Achievements Grid */
+.achievements-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5em;
+  margin-top: 1em;
+}
+
+.achievement-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8em;
+}
+
+.achievement-icon {
+  font-size: 1.2em;
+  margin-top: 0.1em;
+  flex-shrink: 0;
+}
+
+.achievement-content h4 {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #000;
+  margin-bottom: 0.3em;
+}
+
+.achievement-content p {
+  font-size: 0.9em;
+  color: #555;
+  line-height: 1.4;
+}
+
+/* Skills */
+.skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5em;
+  margin-top: 0.5em;
+}
+
+.skill-item {
+  font-size: 0.95em;
+  color: #444;
+  padding: 0.3em 0.8em;
+  background: #f5f5f5;
+  border-radius: 3px;
+  border: 1px solid #e0e0e0;
+}
+
+/* Languages */
+.languages-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5em;
+  margin-top: 1em;
+}
+
+.language-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.language-name {
+  font-size: 0.95em;
+  font-weight: 500;
+  color: #000;
+}
+
+.language-level {
+  font-size: 0.85em;
+  color: #666;
+  margin-bottom: 0.3em;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #e0e0e0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #666;
+  border-radius: 3px;
+}
+
+.progress-fill.native { width: 100%; }
+.progress-fill.proficient { width: 75%; }
+.progress-fill.advanced { width: 90%; }
+
+/* Projects */
+.projects-list {
+  margin-top: 0.5em;
+}
+
+.project-item {
+  margin-bottom: 1em;
+  padding-bottom: 1em;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.project-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.project-name {
+  font-weight: 600;
+  color: #000;
+  margin-bottom: 0.3em;
+}
+
+.project-description {
+  color: #555;
+  font-size: 0.95em;
+  line-height: 1.4;
+}
+
+/* Print Styles */
+@media print {
+  body {
+    margin: 0;
+    padding: 0.5in;
+    font-size: 10pt;
+  }
+  
+  .section {
+    break-inside: avoid;
+    margin-bottom: 1.5em;
+  }
+  
+  .experience-entry {
+    break-inside: avoid;
+    margin-bottom: 1.5em;
+  }
+  
+  .achievements-grid {
+    break-inside: avoid;
+  }
+  
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  body {
+    padding: 1em;
+  }
+  
+  .contact-info {
+    flex-direction: column;
+    gap: 0.5em;
+  }
+  
+  .company-info,
+  .school-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2em;
+  }
+  
+  .achievements-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .languages-grid {
+    grid-template-columns: 1fr;
+  }
+}
