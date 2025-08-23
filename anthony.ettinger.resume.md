@@ -8,7 +8,22 @@
 
 ## Professional Summary
 
-Independent Contractor @ Profullstack — Full‑stack JavaScript, REST APIs, and front‑end engineering. I design and ship pragmatic, production‑ready solutions, leveraging AI‑augmented workflows (Cursor, Copilot, ChatGPT) to accelerate prototyping, improve code quality, and reduce cycle time. Proven technical leadership across greenfield products, developer tooling, and CI/CD.
+Profullstack empowers businesses by delivering scalable,
+blockchain-focused front-end solutions, leveraging over 7 years
+of expertise in JavaScript, Vue, and REST API development.
+Contributions include creating intuitive user interfaces for blockchain-
+based applications, such as a productivity platform on the Dfinity
+Internet Computer and a decentralized music platform. Recent work
+incorporates Vue3, Strapi, and Docker-based CI/CD pipelines to
+streamline deployment processes.
+
+Skatespot Inc. benefits from cutting-edge technological architecture
+designed to support its skate park social platform. The focus remains
+on developing peer-to-peer and progressive web applications
+tailored to users' needs. Passionate about integrating modern
+frameworks like Svelte and vanilla CSS to drive innovation in
+corporate travel and NFT solutions. Dedicated to advancing user-
+centric development with a collaborative, detail-oriented approach.
 
 ---
 
@@ -28,7 +43,7 @@ Independent Contractor @ Profullstack — Full‑stack JavaScript, REST APIs, an
 - Languages: JavaScript/Node.js, HTML, CSS  
 - Front‑end: Svelte/SvelteKit, React, vanilla JS, accessibility (a11y)  
 - Back‑end: Express, Fastify, REST APIs, Webhooks  
-- Data & Storage: MongoDB, PostgreSQL, JSON/CSV pipelines  
+- Data & Storage: MongoDB, PostgreSQL, Supabase, JSON/CSV pipelines  
 - Infra/DevOps: Docker, GitHub Actions, Ubuntu, NGINX, pm2  
 - Testing/Quality: Chai, Karma, Protractor; component patterns; E2E/testable UIs  
 - Web3: Polygon, Ethers.js/web3, NFT utilities, wallet integrations  
@@ -40,38 +55,85 @@ Independent Contractor @ Profullstack — Full‑stack JavaScript, REST APIs, an
 
 ### Profullstack, Inc. | Remote  
 Founder, Independent Contractor (Mar 2018 – Present)  
-- Delivered JavaScript consulting and REST APIs with a focus on blockchain‑aware front‑ends and integrations.  
-- Co‑founded avenasea.com (corporate travel); acted as interim CTO; introduced AI‑driven prototyping to speed feature delivery.  
-- Founded husko.money (Polygon NFT/memecoin), using AI‑assisted scaffolding for contracts, front‑end, and automation.  
-- Implemented Dockerized CI/CD with automated testing and streamlined deployments.  
-- Tooling: Node.js, Svelte/SvelteKit, React, Express/Fastify, Ethers.js/web3, Docker, GitHub Actions.
+
+- Consulted on JavaScript projects and REST APIs, focusing on blockchain
+front-end development.
+- Developed user interfaces for innovative applications like Oblivion software
+and imusify.com.
+- Co-founded and served as CTO for Avenasea.com, enhancing corporate
+travel solutions.
+- Led the creation of an NFT project, husko.money, on the Polygon mainnet,
+driving community engagement.
 
 ### Skatespot, Inc. | Equity‑only, part‑time  
 Co‑founder, Chief Technology Officer (Apr 2021 – Present)  
-- Defined technology stack and architecture for Skatespot.com using Deno and React Native.  
-- Managed APIs and MongoDB on Ubuntu; introduced DevOps best practices to improve reliability.  
-- Mentored a small dev team; established AI‑aided coding guidelines for faster code reviews and feature work.  
-- Tooling: Deno, React Native, MongoDB, Ubuntu, NGINX, pm2, GitHub.
+
+- Spearheaded the development of the technology stack and architecture for
+Skatespot.com using Deno, TypeScript, and MongoDB.
+- Implemented Redis and RabbitMQ for efficient messaging, enhancing system
+performance and reliability.
+- Collaborated with cross-functional teams to ensure seamless integration of
+technology solutions, driving innovation in the skateboarding community.
 
 ### Prognos Health, Inc. | Remote  
 Principal Engineer (Mar 2021 – Jan 2022)  
-- Built a next‑gen underwriting UI with SvelteKit and vanilla CSS; partnered closely with product/design/data science.  
-- Established component standards and accessibility checks; used conversational AI to accelerate refactors and edge‑case reviews.  
-- Tooling: SvelteKit, Node.js, REST, Vite, Vanilla JS/CSS.
+
+- Led the development of a new underwriting user interface using Svelte Kit
+and vanilla CSS, enhancing user experience.
+- Collaborated with cross-functional teams to integrate AI technology for
+diagnosing anonymous patients using public data.
+- Contributed to the main product at Prognos Health, driving innovation in
+healthcare data analytics.
 
 ### IBM | Remote  
 Senior Software Engineer (Nov 2014 – Mar 2018)  
-- Shipped key features for API Connect Editor, including a base application rewrite that improved performance and developer experience.  
-- Implemented robust React components with i18n/l10n support.  
-- Ensured high UI test coverage with Protractor, Karma, and Chai.  
-- Tooling: React, JavaScript, i18n, Protractor, Karma, Chai.
+
+- Developed and implemented key features for API Connect Editor, enhancing
+user experience and functionality.
+- Created a robust base application for rewrite, streamlining development
+processes post-acquisition by IBM.
+- Conducted UI testing using Protractor, Karma, and Chai, ensuring high-
+quality deliverables.
+- Integrated internationalization (i18n) and localization (l10n) features to
+support global users.
+
+### Chegg Inc. | Santa Clara, California, United States
+Senior Software Engineer (Dec 2010 - Sept 2013)  
+
+- Developed and maintained a robust e-commerce cloud platform, enhancing
+user experience and performance.
+- Utilized PHP 5 to build dynamic front-end interfaces from design mocks,
+ensuring seamless functionality.
+- Implemented Test Driven Development (TDD) practices, improving code
+quality and reducing bugs by 30%.
+- Collaborated closely with the Director of Engineering to align technical
+solutions with business objectives.
+
+### Yahoo | Sunnyvale, California, United States  
+Prototyper (Jan 2010 – Dec 2010)  
+
+- Collaborated with the Yahoo design team to prototype innovative features,
+enhancing user experience.
+- Utilized jQuery to develop responsive prototypes for modern browsers,
+ensuring seamless functionality.
+- Mocked and fetched data from REST APIs to simulate real-world scenarios,
+facilitating effective design testing.
+
+### PayPal | San Jose, California, United States  
+Senior Web Developer (Oct 2003 - June 2006)  
+
+- Developed and implemented the XML Presentation Tier for PayPal's web
+architecture team, enhancing user experience.
+- Utilized Perl programming to streamline data processing, resulting in
+improved system efficiency.
+- Collaborated closely with the Director of Engineering to align technical
+solutions with business objectives.
 
 ---
 
 ## Selected Projects
 
 - Primate.js — Open‑source polymorphic development platform. Role: contributor/advocate.  
-- FastestEngineer — Premium SaaS boilerplate built on Svelte and Primate.js.  
 - My GitHub — Personal account with AI experiments and JS projects: https://github.com/ralyodio  
 - Profullstack on GitHub — Organization projects: https://github.com/profullstack
 
@@ -88,7 +150,3 @@ San Diego State University — B.S., Business Administration (1993–1998)
 - AI‑Driven Collaboration: Daily use of Cursor, Copilot, and ChatGPT to write, review, and maintain high‑quality JavaScript/Node/Svelte code.  
 - Mentorship & Standards: Guides teams in prompt strategy, AI‑assisted reviews, component patterns, and maintainable architectures.  
 - Remote‑first: Strong async communication, agile delivery, and documentation practices across distributed teams.
-
----
-
-Last updated: August 2025
