@@ -3,9 +3,9 @@
 # Modern Resume Generator Script
 #
 # Converts anthony.ettinger.resume.md into:
-#   1) anthony.ettinger.resume.docx  (via Pandoc)
-#   2) anthony.ettinger.resume.html  (via custom Node.js generator)
-#   3) anthony.ettinger.resume.pdf   (via Puppeteer with modern styling)
+#   1) anthony.ettinger.resume.html  (via custom Node.js generator)
+#   2) anthony.ettinger.resume.pdf   (via Puppeteer with modern styling)
+#   3) anthony.ettinger.resume.docx  (via Pandoc from HTML for better formatting)
 #
 # Usage: ./resume.sh
 # Requirements:
@@ -102,24 +102,29 @@ main() {
     log_success "HTML and PDF generated successfully"
     echo
 
-    # 4. Generate DOCX using Pandoc (if available)
+    # 4. Generate DOCX using Pandoc from HTML (if available)
     if command -v pandoc &> /dev/null; then
-        log_info "Generating DOCX with Pandoc..."
+        log_info "Generating DOCX from HTML with Pandoc..."
         
-        pandoc "$INPUT_FILE" \
-            --from markdown \
+        # First try with a reference document for better styling
+        pandoc "$BASENAME.html" \
+            --from html \
             --to docx \
             --output "$BASENAME.docx" \
-            --reference-doc=reference.docx 2>/dev/null || \
-        pandoc "$INPUT_FILE" \
-            --from markdown \
+            --reference-doc=reference.docx \
+            --extract-media=docx-media 2>/dev/null || \
+        # Fallback without reference document but with enhanced options
+        pandoc "$BASENAME.html" \
+            --from html \
             --to docx \
-            --output "$BASENAME.docx"
+            --output "$BASENAME.docx" \
+            --extract-media=docx-media \
+            --standalone
         
         if [[ $? -eq 0 ]]; then
-            log_success "DOCX file created: $BASENAME.docx"
+            log_success "DOCX file created from HTML: $BASENAME.docx"
         else
-            log_error "Failed to generate DOCX"
+            log_error "Failed to generate DOCX from HTML"
             exit 1
         fi
     else
