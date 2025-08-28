@@ -98,10 +98,15 @@ function generateContactHTML(contactInfo) {
       return `<span>📞 ${phone}</span>`;
     }
     
+    if (info.includes('**Web**:')) {
+      const url = info.replace('**Web**:', '').trim();
+      return `<span>🌐 <a href="${url}" target="_blank">${url}</a></span>`;
+    }
+    
     if (info.includes('**GitHub**:')) {
       const match = info.match(/\[([^\]]+)\]\(([^)]+)\)/);
       if (match) {
-        return `<span>🔗 <a href="${match[2]}" target="_blank">${match[1]}</a></span>`;
+        return `<span>🐙 <a href="${match[2]}" target="_blank">${match[1]}</a></span>`;
       }
     }
     

@@ -2,6 +2,7 @@
 
 - **Email**: ettinger@gmail.com  
 - **Phone**: +1 (408) 656-2473  
+- **Web**: https://profullstack.com
 - **GitHub**: [github.com/ralyodio](https://github.com/ralyodio)  
 - **LinkedIn**: [linkedin.com/in/chovy](https://linkedin.com/in/chovy)  
 - **Location**: Los Gatos, CA USA (US Citizen, Native English)
@@ -16,14 +17,6 @@ based applications, such as a productivity platform on the Dfinity
 Internet Computer and a decentralized music platform. Recent work
 incorporates Vue3, Strapi, and Docker-based CI/CD pipelines to
 streamline deployment processes.
-
-Skatespot Inc. benefits from cutting-edge technological architecture
-designed to support its skate park social platform. The focus remains
-on developing peer-to-peer and progressive web applications
-tailored to users' needs. Passionate about integrating modern
-frameworks like Svelte and vanilla CSS to drive innovation in
-corporate travel and NFT solutions. Dedicated to advancing user-
-centric development with a collaborative, detail-oriented approach.
 
 ---
 
@@ -53,8 +46,16 @@ centric development with a collaborative, detail-oriented approach.
 
 ## Work Experience
 
+### Tomahawk Edison Sciences Inc. | Remote, part-time
+Full Stack Engineer (April 2024 - Present)
+
+- Developed custom prototypes and proof of concepts using Node.js, Svelte, and Tailwind.  
+- Built both desktop applications (Electron) and web applications (PWA) on a Linux Ubuntu server.  
+- Collaborated with cross-functional teams to enhance product features, improving user experience and engagement.  
+- Leveraged Supabase for database management, ensuring efficient data handling and storage solutions.
+
 ### Profullstack, Inc. | Remote  
-Founder, Independent Contractor (Mar 2018 – Present)  
+Founder, Independent Contractor (Mar 2018 – part-time)  
 
 - Consulted on JavaScript projects and REST APIs, focusing on blockchain
 front-end development.
@@ -66,7 +67,7 @@ travel solutions.
 driving community engagement.
 
 ### Skatespot, Inc. | Equity‑only, part‑time  
-Co‑founder, Chief Technology Officer (Apr 2021 – Present)  
+Co‑founder, Chief Technology Officer (Apr 2021 – Aug 2025)  
 
 - Spearheaded the development of the technology stack and architecture for
 Skatespot.com using Deno, TypeScript, and MongoDB.
