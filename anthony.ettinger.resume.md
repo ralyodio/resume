@@ -7,17 +7,6 @@
 - **LinkedIn**: [linkedin.com/in/chovy](https://linkedin.com/in/chovy)  
 - **Location**: Los Gatos, CA USA (US Citizen, Native English)
 
-## Professional Summary
-
-Profullstack empowers businesses by delivering scalable,
-blockchain-focused front-end solutions, leveraging over 7 years
-of expertise in JavaScript, Vue, and REST API development.
-Contributions include creating intuitive user interfaces for blockchain-
-based applications, such as a productivity platform on the Dfinity
-Internet Computer and a decentralized music platform. Recent work
-incorporates Vue3, Strapi, and Docker-based CI/CD pipelines to
-streamline deployment processes.
-
 ---
 
 ## Areas of Expertise
@@ -33,14 +22,14 @@ streamline deployment processes.
 
 ## Technical Skills
 
-- Languages: JavaScript/Node.js, HTML, CSS  
-- Front‑end: Svelte/SvelteKit, React, vanilla JS, accessibility (a11y)  
+- Languages: JavaScript/Node.js/TypeScript, HTML, CSS  
+- Front‑end: Svelte/SvelteKit, React, TypeScript/JavaScript, Accessibility (a11y)  
 - Back‑end: Express, Fastify, REST APIs, Webhooks  
 - Data & Storage: MongoDB, PostgreSQL, Supabase, JSON/CSV pipelines  
 - Infra/DevOps: Docker, GitHub Actions, Ubuntu, NGINX, pm2  
 - Testing/Quality: Chai, Karma, Protractor; component patterns; E2E/testable UIs  
 - Web3: Polygon, Ethers.js/web3, NFT utilities, wallet integrations  
-- AI/LLM Tooling: Cursor, GitHub Copilot, ChatGPT (code generation, review, and troubleshooting)
+- AI/LLM Tooling: WindSurf, RooCode, Cursor, GitHub Copilot, ChatGPT (code generation, review, and troubleshooting)
 
 ---
 
