@@ -1,10 +1,12 @@
-# Anthony Ettinger
+# Anthony "Chovy" Ettinger
+---
+## Software Engineer @ Profullstack | HTML, CSS, React, Node.js, Supabase
 
 - **Email**: ettinger@gmail.com  
 - **Phone**: +1 (408) 656-2473  
 - **Web**: https://profullstack.com
 - **GitHub**: [github.com/ralyodio](https://github.com/ralyodio)  
-- **LinkedIn**: [linkedin.com/in/chovy](https://linkedin.com/in/chovy)
+- **LinkedIn**: [linkedin.com/in/anthonyettinger](https://linkedin.com/in/anthonyettinger)
 - **Location**: Los Gatos, CA USA (US Citizen, Native English)
 
 ---
@@ -35,14 +37,6 @@
 
 ## Work Experience
 
-### Tomahawk Edison Sciences Inc. | Remote, part-time
-Full Stack Engineer (April 2024 - Present)
-
-- Developed custom prototypes and proof of concepts using Node.js, Svelte, and Tailwind.  
-- Built both desktop applications (Electron) and web applications (PWA) on a Linux Ubuntu server.  
-- Collaborated with cross-functional teams to enhance product features, improving user experience and engagement.  
-- Leveraged Supabase for database management, ensuring efficient data handling and storage solutions.
-
 ### Profullstack, Inc. | Remote  
 Founder, Independent Contractor (Mar 2018 – part-time)  
 
@@ -54,16 +48,6 @@ and imusify.com.
 travel solutions.
 - Led the creation of an NFT project, husko.money, on the Polygon mainnet,
 driving community engagement.
-
-### Skatespot, Inc. | Equity‑only, part‑time  
-Co‑founder, Chief Technology Officer (Apr 2021 – Aug 2025)  
-
-- Spearheaded the development of the technology stack and architecture for
-Skatespot.com using Deno, TypeScript, and MongoDB.
-- Implemented Redis and RabbitMQ for efficient messaging, enhancing system
-performance and reliability.
-- Collaborated with cross-functional teams to ensure seamless integration of
-technology solutions, driving innovation in the skateboarding community.
 
 ### Prognos Health, Inc. | Remote  
 Principal Engineer (Mar 2021 – Jan 2022)  
