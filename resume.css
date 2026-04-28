@@ -1,356 +1,291 @@
-/* Resume CSS - Matching resume.example.png layout */
+/* Clean professional resume styles */
 
 * {
-  margin: 0;
-  padding: 0;
   box-sizing: border-box;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 11pt;
-  line-height: 1.4;
-  color: #333;
-  max-width: 8.5in;
-  margin: 0 auto;
-  padding: 0.75in;
-  background: white;
+html {
+  background: #f3f4f6;
 }
 
-/* Header */
+body {
+  max-width: 8.5in;
+  margin: 0 auto;
+  padding: 0.52in 0.58in;
+  background: #ffffff;
+  color: #20242a;
+  font-family: "Inter", "Segoe UI", Arial, sans-serif;
+  font-size: 9.7pt;
+  line-height: 1.34;
+  -webkit-font-smoothing: antialiased;
+}
+
 .header {
-  margin-bottom: 2em;
+  padding-bottom: 0.16in;
+  margin-bottom: 0.20in;
+  border-bottom: 2px solid #1f2937;
 }
 
 .header h1 {
-  font-size: 2.5em;
-  font-weight: 900;
-  color: #000;
-  margin-bottom: 0.2em;
-  letter-spacing: 0.5px;
+  margin: 0 0 0.035in;
+  color: #111827;
+  font-size: 27pt;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.9px;
 }
 
 .header .subtitle {
-  font-size: 1.1em;
-  color: #666;
-  margin-bottom: 1em;
-  font-weight: 400;
+  margin: 0 0 0.11in;
+  color: #374151;
+  font-size: 10.6pt;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 .contact-info {
   display: flex;
-  gap: 2em;
   flex-wrap: wrap;
-  font-size: 0.95em;
+  gap: 0.045in 0.16in;
+  color: #4b5563;
+  font-size: 8.8pt;
 }
 
 .contact-info span {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.3em;
-  color: #555;
+  white-space: nowrap;
 }
 
-.contact-info a {
-  color: #555;
+.contact-info a,
+a {
+  color: #1f4f82;
   text-decoration: none;
 }
 
-.contact-info a:hover {
-  color: #000;
+main {
+  column-count: 1;
 }
 
-/* Section Headers */
 .section {
-  margin-bottom: 2.5em;
+  margin: 0 0 0.16in;
 }
 
 .section h2 {
-  font-size: 1.1em;
-  font-weight: 700;
-  color: #000;
+  margin: 0 0 0.07in;
+  padding-bottom: 0.025in;
+  border-bottom: 1px solid #d1d5db;
+  color: #111827;
+  font-size: 9.2pt;
+  font-weight: 800;
+  line-height: 1.15;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 1em;
-  padding-bottom: 0.3em;
-  border-bottom: 2px solid #000;
+  letter-spacing: 1.15px;
 }
 
-/* Experience Entries */
-.experience-entry {
-  margin-bottom: 2em;
+.section p,
+p {
+  margin: 0 0 0.07in;
+}
+
+.experience-entry,
+.education-entry,
+.project-item {
+  margin: 0 0 0.115in;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .job-header {
-  margin-bottom: 0.5em;
+  margin-bottom: 0.035in;
 }
 
-.job-title {
-  font-size: 1.05em;
-  font-weight: 600;
-  color: #000;
-  margin-bottom: 0.2em;
+.job-title,
+.degree-title,
+.project-name {
+  color: #111827;
+  font-size: 10.1pt;
+  font-weight: 750;
+  line-height: 1.18;
 }
 
-.company-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5em;
-  font-size: 0.95em;
-}
-
-.company-name {
-  font-weight: 500;
-  color: #555;
-}
-
-.job-duration {
-  color: #666;
-  font-size: 0.9em;
-}
-
-.job-location {
-  color: #666;
-  font-size: 0.9em;
-  margin-left: 1em;
-}
-
-.job-description {
-  color: #444;
-  line-height: 1.5;
-  margin-bottom: 0.8em;
-}
-
-.job-achievements {
-  list-style: none;
-  padding-left: 0;
-}
-
-.job-achievements li {
-  position: relative;
-  padding-left: 1.2em;
-  margin-bottom: 0.4em;
-  line-height: 1.4;
-}
-
-.job-achievements li:before {
-  content: "•";
-  position: absolute;
-  left: 0;
-  color: #000;
-  font-weight: bold;
-}
-
-/* Education */
-.education-entry {
-  margin-bottom: 1.5em;
-}
-
-.degree-title {
-  font-size: 1.05em;
-  font-weight: 600;
-  color: #000;
-  margin-bottom: 0.2em;
-}
-
+.company-info,
 .school-info {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  font-size: 0.95em;
+  align-items: baseline;
+  gap: 0.15in;
+  color: #4b5563;
+  font-size: 8.9pt;
+  line-height: 1.18;
 }
 
+.company-name,
 .school-name {
-  font-weight: 500;
-  color: #555;
+  font-weight: 650;
 }
 
-.education-duration {
-  color: #666;
-  font-size: 0.9em;
+.job-duration,
+.education-duration,
+.job-location {
+  color: #6b7280;
+  white-space: nowrap;
 }
 
-.education-location {
-  color: #666;
-  font-size: 0.9em;
-  margin-left: 1em;
+.job-description {
+  margin: 0.03in 0 0.04in;
+  color: #374151;
 }
 
-/* Key Achievements Grid */
-.achievements-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5em;
-  margin-top: 1em;
+ul,
+.job-achievements {
+  margin: 0.035in 0 0.045in;
+  padding-left: 0.14in;
 }
 
-.achievement-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.8em;
+li,
+.job-achievements li {
+  margin: 0 0 0.031in;
+  padding-left: 0.015in;
 }
 
-.achievement-icon {
-  font-size: 1.2em;
-  margin-top: 0.1em;
-  flex-shrink: 0;
+li::marker {
+  color: #374151;
 }
 
-.achievement-content h4 {
-  font-size: 0.95em;
-  font-weight: 600;
-  color: #000;
-  margin-bottom: 0.3em;
-}
-
-.achievement-content p {
-  font-size: 0.9em;
-  color: #555;
-  line-height: 1.4;
-}
-
-/* Skills */
 .skills-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5em;
-  margin-top: 0.5em;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.045in 0.08in;
+  margin-top: 0.01in;
 }
 
 .skill-item {
-  font-size: 0.95em;
-  color: #444;
-  padding: 0.3em 0.8em;
-  background: #f5f5f5;
-  border-radius: 3px;
-  border: 1px solid #e0e0e0;
+  display: block;
+  padding: 0.045in 0.06in;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #374151;
+  border-radius: 4px;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 8.55pt;
+  line-height: 1.24;
 }
 
-/* Languages */
-.languages-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5em;
-  margin-top: 1em;
-}
-
-.language-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3em;
-}
-
-.language-name {
-  font-size: 0.95em;
-  font-weight: 500;
-  color: #000;
-}
-
-.language-level {
-  font-size: 0.85em;
-  color: #666;
-  margin-bottom: 0.3em;
-}
-
-.progress-bar {
-  width: 100%;
-  height: 6px;
-  background: #e0e0e0;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: #666;
-  border-radius: 3px;
-}
-
-.progress-fill.native { width: 100%; }
-.progress-fill.proficient { width: 75%; }
-.progress-fill.advanced { width: 90%; }
-
-/* Projects */
 .projects-list {
-  margin-top: 0.5em;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.07in 0.12in;
 }
 
 .project-item {
-  margin-bottom: 1em;
-  padding-bottom: 1em;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.project-item:last-child {
-  border-bottom: none;
   margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.project-name {
-  font-weight: 600;
-  color: #000;
-  margin-bottom: 0.3em;
+  padding-bottom: 0.055in;
+  border-bottom: 1px solid #eef0f3;
 }
 
 .project-description {
-  color: #555;
-  font-size: 0.95em;
-  line-height: 1.4;
+  margin-top: 0.018in;
+  color: #4b5563;
+  font-size: 8.75pt;
+  line-height: 1.28;
 }
 
-/* Print Styles */
+.achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.09in;
+}
+
+.achievement-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.055in;
+}
+
+.achievement-icon {
+  display: none;
+}
+
+.achievement-content h4 {
+  margin: 0 0 0.02in;
+  color: #111827;
+  font-size: 9pt;
+}
+
+.achievement-content p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 8.7pt;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #d1d5db;
+  margin: 0.12in 0;
+}
+
+strong {
+  font-weight: 750;
+  color: #111827;
+}
+
+@page {
+  size: A4;
+  margin: 0.42in;
+}
+
 @media print {
+  html {
+    background: #ffffff;
+  }
+
   body {
+    max-width: none;
     margin: 0;
-    padding: 0.5in;
-    font-size: 10pt;
+    padding: 0;
+    font-size: 9.45pt;
+    line-height: 1.31;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
-  
+
   .section {
-    break-inside: avoid;
-    margin-bottom: 1.5em;
+    margin-bottom: 0.135in;
   }
-  
+
+  .section h2 {
+    margin-bottom: 0.055in;
+  }
+
   .experience-entry {
-    break-inside: avoid;
-    margin-bottom: 1.5em;
+    margin-bottom: 0.095in;
   }
-  
-  .achievements-grid {
-    break-inside: avoid;
-  }
-  
+
   a {
-    color: inherit !important;
+    color: #1f4f82 !important;
     text-decoration: none !important;
   }
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+@media screen and (max-width: 760px) {
   body {
-    padding: 1em;
+    padding: 24px;
   }
-  
-  .contact-info {
-    flex-direction: column;
-    gap: 0.5em;
-  }
-  
+
+  .contact-info,
   .company-info,
   .school-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.2em;
+    display: block;
   }
-  
+
+  .contact-info span {
+    margin-right: 12px;
+  }
+
+  .skills-list,
+  .projects-list,
   .achievements-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .languages-grid {
     grid-template-columns: 1fr;
   }
 }

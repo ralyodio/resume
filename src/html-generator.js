@@ -6,6 +6,21 @@
 import { readFile, writeFile } from 'fs/promises';
 import { marked } from 'marked';
 
+function renderInline(value = '') {
+  return marked.parseInline(String(value).trim())
+    .replace(/^<p>|<\/p>$/g, '')
+    .trim();
+}
+
+function stripInlineMarkdown(value = '') {
+  return String(value)
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+    .trim();
+}
+
 /**
  * Parse markdown content and extract structured resume data
  * @param {string} markdownContent - Raw markdown content
@@ -88,42 +103,29 @@ function getSectionType(title) {
 function generateContactHTML(contactInfo) {
   return contactInfo.map(info => {
     // Parse different contact formats
-    if (info.includes('**Email**:')) {
-      const email = info.replace('**Email**:', '').trim();
-      return `<span>📧 <a href="mailto:${email}">${email}</a></span>`;
+    const normalized = stripInlineMarkdown(info);
+    const [rawLabel, ...rest] = normalized.split(':');
+    const label = rawLabel.trim().toLowerCase();
+    const value = rest.join(':').trim();
+
+    if (label === 'email') {
+      return `<span><a href="mailto:${value}">${value}</a></span>`;
     }
-    
-    if (info.includes('**Phone**:')) {
-      const phone = info.replace('**Phone**:', '').trim();
-      return `<span>📞 ${phone}</span>`;
+
+    if (label === 'phone') {
+      return `<span>${value}</span>`;
     }
-    
-    if (info.includes('**Web**:')) {
-      const url = info.replace('**Web**:', '').trim();
-      return `<span>🌐 <a href="${url}" target="_blank">${url}</a></span>`;
+
+    if (['web', 'github', 'linkedin'].includes(label)) {
+      return `<span><a href="${value}" target="_blank">${value.replace(/^https?:\/\//, '')}</a></span>`;
     }
-    
-    if (info.includes('**GitHub**:')) {
-      const match = info.match(/\[([^\]]+)\]\(([^)]+)\)/);
-      if (match) {
-        return `<span>🐙 <a href="${match[2]}" target="_blank">${match[1]}</a></span>`;
-      }
+
+    if (['location', 'work authorization'].includes(label)) {
+      return `<span>${value}</span>`;
     }
-    
-    if (info.includes('**LinkedIn**:')) {
-      const match = info.match(/\[([^\]]+)\]\(([^)]+)\)/);
-      if (match) {
-        return `<span>💼 <a href="${match[2]}" target="_blank">${match[1]}</a></span>`;
-      }
-    }
-    
-    if (info.includes('**Location**:')) {
-      const location = info.replace('**Location**:', '').trim();
-      return `<span>📍 ${location}</span>`;
-    }
-    
+
     // Fallback for other formats
-    return `<span>${info.replace(/\*\*(.*?)\*\*/g, '$1')}</span>`;
+    return `<span>${renderInline(info)}</span>`;
   }).join('\n');
 }
 
@@ -183,19 +185,19 @@ function generateExperienceHTML(content) {
   return jobs.map(job => `
     <div class="experience-entry">
       <div class="job-header">
-        <div class="job-title">${job.title}</div>
+        <div class="job-title">${renderInline(job.title)}</div>
         <div class="company-info">
-          <span class="company-name">${job.company}</span>
+          <span class="company-name">${renderInline(job.company)}</span>
           <div>
-            <span class="job-duration">📅 ${job.duration}</span>
-            ${job.location ? `<span class="job-location">📍 ${job.location}</span>` : ''}
+            <span class="job-duration">${renderInline(job.duration)}</span>
+            ${job.location ? `<span class="job-location">| ${renderInline(job.location)}</span>` : ''}
           </div>
         </div>
       </div>
-      ${job.description.length ? `<div class="job-description">${job.description.join(' ')}</div>` : ''}
+      ${job.description.length ? `<div class="job-description">${job.description.map(renderInline).join(' ')}</div>` : ''}
       ${job.achievements.length ? `
         <ul class="job-achievements">
-          ${job.achievements.map(achievement => `<li>${achievement}</li>`).join('\n')}
+          ${job.achievements.map(achievement => `<li>${renderInline(achievement)}</li>`).join('\n')}
         </ul>
       ` : ''}
     </div>
@@ -216,13 +218,11 @@ function generateSkillsHTML(content) {
       const colonIndex = skillLine.indexOf(':');
       
       if (colonIndex > 0) {
+        const label = skillLine.substring(0, colonIndex).trim();
         const items = skillLine.substring(colonIndex + 1).trim();
-        // Split by comma and add each skill
-        items.split(',').forEach(skill => {
-          skills.push(skill.trim());
-        });
+        skills.push(`<strong>${renderInline(label)}:</strong> ${renderInline(items)}`);
       } else {
-        skills.push(skillLine);
+        skills.push(renderInline(skillLine));
       }
     }
   }
@@ -240,40 +240,52 @@ function generateSkillsHTML(content) {
  * @returns {string} HTML string
  */
 function generateEducationHTML(content) {
-  const education = [];
+  const entries = [];
+  const notes = [];
   let currentEd = null;
-  
-  for (const line of content) {
-    if (!line.startsWith('-') && !line.startsWith('#') && line.includes('—') || line.includes('University') || line.includes('College')) {
-      if (currentEd) education.push(currentEd);
-      
-      const parts = line.split('—');
+
+  for (const rawLine of content) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    if (line.startsWith('### ')) {
+      if (currentEd) entries.push(currentEd);
       currentEd = {
-        degree: parts[0]?.trim() || line,
-        school: parts[1]?.trim() || '',
-        duration: '',
-        location: ''
+        school: line.substring(4).trim(),
+        degree: '',
+        duration: ''
       };
-    } else if (currentEd && (line.includes('(') || line.match(/\d{4}/))) {
-      // Duration and location line
-      const match = line.match(/\((.+?)\)/);
-      if (match) {
-        currentEd.duration = match[1];
-      }
+      continue;
     }
+
+    if (currentEd && !currentEd.degree) {
+      const match = line.match(/^(.+?)\s*\((.+?)\)\s*$/);
+      if (match) {
+        currentEd.degree = match[1].trim();
+        currentEd.duration = match[2].trim();
+      } else {
+        currentEd.degree = line;
+      }
+      continue;
+    }
+
+    notes.push(line);
   }
-  
-  if (currentEd) education.push(currentEd);
-  
-  return education.map(ed => `
-    <div class="education-entry">
-      <div class="degree-title">${ed.degree}</div>
-      <div class="school-info">
-        <span class="school-name">${ed.school}</span>
-        ${ed.duration ? `<span class="education-duration">📅 ${ed.duration}</span>` : ''}
+
+  if (currentEd) entries.push(currentEd);
+
+  return `
+    ${entries.map(ed => `
+      <div class="education-entry">
+        <div class="degree-title">${renderInline(ed.school)}</div>
+        <div class="school-info">
+          <span class="school-name">${renderInline(ed.degree)}</span>
+          ${ed.duration ? `<span class="education-duration">${renderInline(ed.duration)}</span>` : ''}
+        </div>
       </div>
-    </div>
-  `).join('\n');
+    `).join('\n')}
+    ${notes.length ? `<div class="education-notes">${marked.parse(notes.join('\n\n'))}</div>` : ''}
+  `;
 }
 
 /**
@@ -313,8 +325,8 @@ function generateAchievementsHTML(content) {
         <div class="achievement-item">
           <div class="achievement-icon">${item.icon}</div>
           <div class="achievement-content">
-            <h4>${item.title}</h4>
-            <p>${item.description}</p>
+            <h4>${renderInline(item.title)}</h4>
+            <p>${renderInline(item.description)}</p>
           </div>
         </div>
       `).join('\n')}
@@ -349,8 +361,8 @@ function generateProjectsHTML(content) {
     <div class="projects-list">
       ${projects.map(project => `
         <div class="project-item">
-          <div class="project-name">${project.name}</div>
-          ${project.description ? `<div class="project-description">${project.description}</div>` : ''}
+          <div class="project-name">${renderInline(project.name)}</div>
+          ${project.description ? `<div class="project-description">${renderInline(project.description)}</div>` : ''}
         </div>
       `).join('\n')}
     </div>
@@ -431,15 +443,105 @@ export function generateHTML(resumeData, cssPath = 'resume.css') {
  * @param {string} outputPath - Path for HTML output
  * @param {string} cssPath - Path to CSS file
  */
+/**
+ * Generate a generic HTML document for non-resume markdown (e.g. cover letters,
+ * project pitches). Falls back to a clean marked-based render when the input
+ * doesn't parse as a structured resume.
+ * @param {string} markdownContent - Raw markdown content
+ * @param {string} cssPath - Path to CSS file
+ * @returns {string} Complete HTML document
+ */
+export function generateGenericHTML(markdownContent, cssPath = 'resume.css') {
+  // Try to use the first H1 as the document title
+  const h1Match = markdownContent.match(/^#\s+(.+)$/m);
+  const title = h1Match ? h1Match[1].trim() : 'Document';
+
+  const body = marked.parse(markdownContent);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <link rel="stylesheet" href="${cssPath}">
+    <style>
+      /* Generic document styling (cover letters, pitches, etc.) */
+      body.generic-doc {
+        max-width: 7.1in;
+        padding: 0.6in 0.7in;
+        line-height: 1.55;
+      }
+      body.generic-doc h1 {
+        font-size: 1.8em;
+        font-weight: 800;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.3em;
+        margin-bottom: 0.6em;
+      }
+      body.generic-doc h2 {
+        font-size: 1.1em;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: #111;
+        margin: 1.4em 0 0.5em;
+      }
+      body.generic-doc p { margin-bottom: 0.75em; }
+      body.generic-doc ul { list-style: none; padding: 0; margin: 0 0 1em; }
+      body.generic-doc ul li {
+        padding: 0.4em 0;
+        border-bottom: 1px solid #eee;
+      }
+      body.generic-doc ul li:last-child { border-bottom: none; }
+      body.generic-doc a {
+        color: #0a58ca;
+        text-decoration: none;
+        word-break: break-word;
+      }
+      body.generic-doc a:hover { text-decoration: underline; }
+      body.generic-doc hr {
+        border: none;
+        border-top: 1px solid #ccc;
+        margin: 1.4em 0 1em;
+      }
+    </style>
+</head>
+<body class="generic-doc">
+${body}
+</body>
+</html>`;
+}
+
+/**
+ * Decide whether the parsed data actually looks like a resume.
+ * Requires an H1 name plus at least one "resume-flavored" section
+ * (experience / education / skills / achievements). Avoids hijacking
+ * cover letters or project pitches that happen to use H1 + H2.
+ * @param {Object} resumeData
+ * @returns {boolean}
+ */
+function looksLikeResume(resumeData) {
+  if (!resumeData.name) return false;
+  const resumeTypes = new Set(['experience', 'education', 'skills', 'achievements']);
+  return resumeData.sections.some(s => resumeTypes.has(s.type));
+}
+
 export async function convertMarkdownToHTML(inputPath, outputPath, cssPath = 'resume.css') {
   try {
     const markdownContent = await readFile(inputPath, 'utf-8');
     const resumeData = parseResumeData(markdownContent);
-    const htmlContent = generateHTML(resumeData, cssPath);
-    
+
+    let htmlContent;
+    if (looksLikeResume(resumeData)) {
+      htmlContent = generateHTML(resumeData, cssPath);
+    } else {
+      console.log('ℹ️  Input does not look like a structured resume — using generic markdown renderer.');
+      htmlContent = generateGenericHTML(markdownContent, cssPath);
+    }
+
     await writeFile(outputPath, htmlContent, 'utf-8');
     console.log(`✅ HTML generated successfully: ${outputPath}`);
-    
+
     return htmlContent;
   } catch (error) {
     console.error('❌ Error generating HTML:', error.message);
