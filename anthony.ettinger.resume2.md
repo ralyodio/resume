@@ -1,6 +1,6 @@
 # Anthony "Chovy" Ettinger
 ---
-## Software Engineer @ Profullstack | HTML, CSS, React, Node.js, Supabase
+## Software Engineer @ Profullstack | HTML, CSS, JavaScript, React, Node.js, Supabase
 
 - **Email**: ettinger@gmail.com  
 - **Phone**: +1 (408) 656-2473  
@@ -29,7 +29,7 @@
 - Back‑end: Express, Fastify, REST APIs, Webhooks  
 - Data & Storage: MongoDB, PostgreSQL, Supabase, JSON/CSV pipelines  
 - Infra/DevOps: Docker, GitHub Actions, Ubuntu, NGINX, pm2  
-- Testing/Quality: Chai, Karma, Protractor; component patterns; E2E/testable UIs  
+- Testing/Quality: Chai, Karma, Vitest, Jest; component patterns; E2E/testable UIs  
 - Web3: Polygon, Ethers.js/web3, NFT utilities, wallet integrations  
 - AI/LLM Tooling: WindSurf, RooCode, Cursor, GitHub Copilot, ChatGPT (code generation, review, and troubleshooting)
 
@@ -102,14 +102,6 @@ architecture team, enhancing user experience.
 improved system efficiency.
 - Collaborated closely with the Director of Engineering to align technical
 solutions with business objectives.
-
----
-
-## Selected Projects
-
-- Primate.js — Open‑source polymorphic development platform. Role: contributor/advocate.  
-- My GitHub — Personal account with AI experiments and JS projects: https://github.com/ralyodio  
-- Profullstack on GitHub — Organization projects: https://github.com/profullstack
 
 ---
 
