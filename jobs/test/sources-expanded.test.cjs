@@ -1,0 +1,37 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const { assertSourceAdapter }=require('../src/sources/interface.cjs');
+const { listSources, getSource }=require('../src/sources/index.cjs');
+
+const expected=['weworkremotely','builtin','wellfound','remotive','himalayas','cryptocurrencyjobs','laborx'];
+
+test('expanded remote-only sources are registered and review-only',()=>{
+  const ids=listSources().map(s=>s.id);
+  for (const id of expected) {
+    assert.ok(ids.includes(id), `${id} not listed`);
+    const adapter=getSource(id);
+    assert.equal(assertSourceAdapter(adapter), true);
+    assert.equal(adapter.source.supportsRemoteFilter, true);
+    assert.equal(adapter.source.reviewOnly, true);
+  }
+});
+
+test('expanded sources build remote-filtered urls',()=>{
+  const urls=Object.fromEntries(expected.map(id=>[id,getSource(id).buildSearchUrl({query:'AI Engineer', remoteOnly:true})]));
+  assert.match(urls.weworkremotely,/weworkremotely\.com/);
+  assert.match(urls.builtin,/builtin\.com\/jobs\/remote/);
+  assert.match(urls.wellfound,/remote=true/);
+  assert.match(urls.remotive,/remote-jobs\/software-dev/);
+  assert.match(urls.himalayas,/himalayas\.app\/jobs\/software-engineering/);
+  assert.match(urls.cryptocurrencyjobs,/cryptocurrencyjobs\.co\/remote/);
+  assert.match(urls.laborx,/laborx\.com\/jobs/);
+});
+
+test('html adapters parse a simple fixture into normalized review-only records',()=>{
+  const html='<article><a href="/remote-jobs/senior-ai-engineer">Senior AI Engineer</a><h3>Acme AI</h3><p>Remote Node React LLM platform role</p></article>';
+  const rows=getSource('remotive').parseJobsFromHtml(html,{query:'AI Engineer',limit:1});
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].source,'remotive');
+  assert.equal(rows[0].remote,true);
+  assert.equal(rows[0].status,'new');
+});
