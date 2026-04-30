@@ -1,0 +1,3 @@
+async function fetchText(url, opts={}) { const res = await fetch(url, { headers: { 'user-agent':'HermesRemoteJobs/0.1 (+review-only)', accept:'text/html,application/json,*/*', ...(opts.headers||{}) }, ...opts }); if (!res.ok) throw new Error(`Fetch failed ${res.status} ${res.statusText}: ${url}`); return await res.text(); }
+async function fetchJson(url, opts={}) { const res = await fetch(url, { headers: { 'user-agent':'HermesRemoteJobs/0.1 (+review-only)', accept:'application/json,*/*', ...(opts.headers||{}) }, ...opts }); if (!res.ok) throw new Error(`Fetch failed ${res.status} ${res.statusText}: ${url}`); return await res.json(); }
+module.exports = { fetchText, fetchJson };
