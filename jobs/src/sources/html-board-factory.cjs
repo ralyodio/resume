@@ -22,9 +22,9 @@ function makeHtmlBoardAdapter(def) {
       const parsed = def.parseCard ? def.parseCard(card, opts) : {};
       const href = parsed.href || (card.match(/href=["']([^"']+)["']/i)||[])[1];
       const text = stripHtml(card);
-      const title = cleanText(parsed.title || (card.match(/<(?:h1|h2|h3|a)[^>]*>([\s\S]{2,180}?)<\/(?:h1|h2|h3|a)>/i)||[])[1] || text.split(/\s{2,}|\n/)[0] || 'Remote Role');
-      const company = cleanText(parsed.company || 'Unknown');
-      if (!href || !title || /post job|sign in|login|subscribe|category|newsletter/i.test(title)) continue;
+      const title = stripHtml(parsed.title || (card.match(/<(?:h1|h2|h3|a)[^>]*>([\s\S]{2,180}?)<\/(?:h1|h2|h3|a)>/i)||[])[1] || text.split(/\s{2,}|\n/)[0] || 'Remote Role');
+      const company = stripHtml(parsed.company || 'Unknown');
+      if (!href || !title || title.length < 4 || /post job|sign in|login|subscribe|category|newsletter|^remote jobs$|^view job$/i.test(title)) continue;
       if (!allMatches(`${title} ${company} ${text}`, opts.query || '')) continue;
       if (!withinSince(parsed.postedAt, opts.since||'7d')) continue;
       const sourceUrl=absoluteUrl(def.baseUrl, href);
