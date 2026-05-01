@@ -20,8 +20,15 @@ test('detectAts identifies supported ATS and email URLs',()=>{
   assert.equal(detectAts('https://jobs.lever.co/acme/abc'), 'lever');
   assert.equal(detectAts('https://jobs.ashbyhq.com/acme/abc'), 'ashby');
   assert.equal(detectAts('https://apply.workable.com/acme/j/ABC/'), 'workable');
-  assert.equal(detectAts('https://jobs.smartrecruiters.com/Acme/123-title'), 'smartrecruiters');
-  assert.equal(detectAts('mailto:jobs@example.com?subject=Engineer'), 'email');
+  assert.equal(detectAts('https://jobs.smartrecruiters.com/Foo/123'), 'smartrecruiters');
+  assert.equal(detectAts('https://foo.wd5.myworkdayjobs.com/en-US/jobs/job/123'), 'workday');
+  assert.equal(detectAts('https://company.bamboohr.com/careers/123'), 'bamboohr');
+  assert.equal(detectAts('https://company.applytojob.com/apply/123'), 'applytojob');
+  assert.equal(detectAts('https://company.breezy.hr/p/123'), 'breezy');
+  assert.equal(detectAts('https://careers-company.icims.com/jobs/123/job'), 'icims');
+  assert.equal(detectAts('https://jobs.jobvite.com/company/job/123'), 'jobvite');
+  assert.equal(detectAts('https://company.recruiterbox.com/jobs/123'), 'recruiterbox');
+  assert.equal(detectAts('mailto:jobs@example.com'), 'email');
   assert.equal(detectAts('https://example.com/apply'), 'unknown');
   assert.equal(detectAts('https://example.com/jobs/greenhouse-role'), 'unknown');
   assert.equal(detectAts('https://not-ashby.example.com/jobs/123'), 'unknown');

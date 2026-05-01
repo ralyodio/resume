@@ -3,7 +3,7 @@ const path = require('path');
 const { appendAuditEvent } = require('../audit/audit-log.cjs');
 
 const RESUME4_PATH = '/home/ettinger/Desktop/resume/anthony.ettinger.resume4.pdf';
-const SUPPORTED_ATS = new Set(['greenhouse','lever','ashby','workable','smartrecruiters','email']);
+const SUPPORTED_ATS = new Set(['greenhouse','lever','ashby','workable','smartrecruiters','workday','bamboohr','applytojob','breezy','icims','jobvite','recruiterbox','email']);
 
 function safeUrl(url) { try { return new URL(String(url || '')); } catch { return null; } }
 function detectAts(url) {
@@ -17,6 +17,13 @@ function detectAts(url) {
   if (hostIs('ashbyhq.com')) return 'ashby';
   if (hostIs('workable.com')) return 'workable';
   if (hostIs('smartrecruiters.com')) return 'smartrecruiters';
+  if (hostIs('myworkdayjobs.com') || host.endsWith('.myworkdayjobs.com')) return 'workday';
+  if (hostIs('bamboohr.com')) return 'bamboohr';
+  if (hostIs('applytojob.com')) return 'applytojob';
+  if (hostIs('breezy.hr')) return 'breezy';
+  if (hostIs('icims.com')) return 'icims';
+  if (hostIs('jobvite.com')) return 'jobvite';
+  if (hostIs('recruiterbox.com')) return 'recruiterbox';
   return 'unknown';
 }
 

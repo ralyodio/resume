@@ -38,7 +38,7 @@ async function searchSources({store,args,sourceIds}) {
   for(const id of sourceIds){
     try {
       const adapter=getSource(id); assertSourceAdapter(adapter);
-      const jobs=await adapter.searchJobs({query:args.query||'', remoteOnly:true, since:args.since||'7d', limit:Number(args.limit||25)});
+      const jobs=await adapter.searchJobs({query:args.query||'', remoteOnly:true, since:args.since||'7d', limit:Number(args.limit||25), ats:args.ats, maxPages:args['max-pages']||args.maxPages, location:args.location});
       for(const job of jobs){ store.upsert(job,'search-result'); count++; console.log(`${job.source}\t${job.title}\t${job.company}\t${job.sourceUrl}`); }
     } catch (err) {
       console.error(`source failed\t${id}\t${err.message}`);
