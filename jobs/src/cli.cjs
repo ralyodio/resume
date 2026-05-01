@@ -24,7 +24,7 @@ Usage:
   node src/cli.cjs jobs rotate --include-easy-apply --dry-run-easy-apply
   node src/cli.cjs jobs rotate --include-easy-apply --run-easy-apply-live
   node src/cli.cjs sources list
-  node src/cli.cjs sources enable wellfound
+  node src/cli.cjs sources enable builtin
   node src/cli.cjs sources disable indeed
   node src/cli.cjs blacklist company "Some Staffing Agency"
   node src/cli.cjs blacklist keyword "clearance required"

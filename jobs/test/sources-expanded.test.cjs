@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const { assertSourceAdapter }=require('../src/sources/interface.cjs');
 const { listSources, getSource }=require('../src/sources/index.cjs');
 
-const expected=['weworkremotely','builtin','wellfound','remotive','himalayas','cryptocurrencyjobs','laborx'];
+const expected=['weworkremotely','builtin','remotive','himalayas','cryptocurrencyjobs','laborx'];
 
 test('expanded remote-only sources are registered and review-only',()=>{
   const ids=listSources().map(s=>s.id);
@@ -20,7 +20,6 @@ test('expanded sources build remote-filtered urls',()=>{
   const urls=Object.fromEntries(expected.map(id=>[id,getSource(id).buildSearchUrl({query:'AI Engineer', remoteOnly:true})]));
   assert.match(urls.weworkremotely,/weworkremotely\.com/);
   assert.match(urls.builtin,/builtin\.com\/jobs\/remote/);
-  assert.match(urls.wellfound,/remote=true/);
   assert.match(urls.remotive,/remote-jobs\/software-dev/);
   assert.match(urls.himalayas,/himalayas\.app\/jobs\/software-engineering/);
   assert.match(urls.cryptocurrencyjobs,/cryptocurrencyjobs\.co\/remote/);
