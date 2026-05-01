@@ -2,6 +2,16 @@ const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
 
+function loadLocalEnv() {
+  const envPath = path.resolve(__dirname, '.env');
+  if (!fs.existsSync(envPath)) return;
+  for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
+  }
+}
+loadLocalEnv();
+
 const RESUME_PDF = process.env.RESUME_PDF || '/home/ettinger/Desktop/resume/anthony.ettinger.resume4.pdf';
 const COVER_PDF = process.env.COVER_PDF || '/home/ettinger/Desktop/resume/anthony.ettinger.cover4.pdf';
 const CHROME_PROFILE = process.env.CHROME_PROFILE || `${process.env.HOME}/.cache/hermes-dice-chrome`;
@@ -51,6 +61,34 @@ async function dismissDialogs(page){
     return n;
   }).catch(()=>0);
   if (clicks) await sleep(500);
+}
+async function loginDiceIfNeeded(page){
+  await page.goto('https://www.dice.com/home-feed', {waitUntil:'domcontentloaded', timeout:60000});
+  await sleep(2500);
+  let text = await page.evaluate(()=>document.body.innerText || '').catch(()=> '');
+  if (/Anthony Ettinger|Profile Visibility|Your Profile|My Jobs|Recommended Jobs/i.test(text) && !/Sign In|Continue with email/i.test(text)) return true;
+  const email = process.env.DICE_EMAIL;
+  const password = process.env.DICE_PASSWORD;
+  if (!email || !password) throw new Error('Dice session is not logged in and DICE_EMAIL/DICE_PASSWORD are missing from .env');
+  await page.goto('https://www.dice.com/dashboard/login', {waitUntil:'domcontentloaded', timeout:60000});
+  await sleep(1500);
+  const emailSelector = 'input[type="email"], input[name="email"], input[autocomplete="username"], input[id*="email" i]';
+  await page.waitForSelector(emailSelector, {timeout:30000});
+  await page.type(emailSelector, email, {delay:10});
+  await clickText(page, /continue with email|continue|next/i, 'button,[role="button"]');
+  await page.waitForNavigation({waitUntil:'domcontentloaded', timeout:30000}).catch(()=>null);
+  await sleep(1500);
+  const passwordSelector = 'input[type="password"], input[name="password"], input[autocomplete="current-password"]';
+  await page.waitForSelector(passwordSelector, {timeout:30000});
+  await page.type(passwordSelector, password, {delay:10});
+  await clickText(page, /sign in|log in|login/i, 'button,[role="button"]');
+  await page.waitForNavigation({waitUntil:'domcontentloaded', timeout:60000}).catch(()=>null);
+  await sleep(3500);
+  text = await page.evaluate(()=>document.body.innerText || '').catch(()=> '');
+  if (/captcha|verification|verify your identity|multi-factor|authentication code|security code/i.test(text)) throw new Error('Dice requires manual verification/MFA/CAPTCHA. Complete it in the browser profile, then rerun.');
+  if (/Anthony Ettinger|Profile Visibility|Your Profile|My Jobs|Recommended Jobs/i.test(text)) return true;
+  if (/Sign In|Continue with email|password/i.test(text)) throw new Error('Dice login failed; check .env credentials or complete login manually.');
+  return true;
 }
 async function clickText(page, re, selectors='button,a,[role="button"],[role="menuitem"]'){
   return await page.evaluate((src,flags,selectors)=>{
@@ -161,6 +199,7 @@ async function applyJob(page, job){
       else await d.dismiss();
     } catch {}
   });
+  await loginDiceIfNeeded(page);
   const candidates = [];
   for (const q of SEARCHES) {
     const items = await scrapeSearch(page, q);

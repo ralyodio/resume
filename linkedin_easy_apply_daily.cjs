@@ -17,6 +17,16 @@ const path = require('path');
 const os = require('os');
 const puppeteer = require('puppeteer');
 
+function loadLocalEnv() {
+  const envPath = path.resolve(__dirname, '.env');
+  if (!fs.existsSync(envPath)) return;
+  for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
+  }
+}
+loadLocalEnv();
+
 const ROOT = '/tmp/linkedin-easyapply-daily';
 const STATE_PATH = path.join(ROOT, 'state.json');
 const RESULTS_PATH = path.join(ROOT, 'results.jsonl');
@@ -331,6 +341,31 @@ async function closeModal(page) {
   await page.keyboard.press('Escape').catch(() => {});
 }
 
+async function loginLinkedInIfNeeded(page) {
+  await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await sleep(2500);
+  let t = await visibleText(page);
+  if (!(/sign in|join now|email or phone/i.test(t) && !/start a post|feed/i.test(t))) return true;
+  const email = process.env.LINKEDIN_EMAIL;
+  const password = process.env.LINKEDIN_PASSWORD;
+  if (!email || !password) throw new Error('LinkedIn session is not logged in and LINKEDIN_EMAIL/LINKEDIN_PASSWORD are missing from .env');
+  await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await sleep(1000);
+  await page.type('#username,input[name="session_key"]', email, { delay: 10 });
+  await page.type('#password,input[name="session_password"]', password, { delay: 10 });
+  await Promise.all([
+    page.click('button[type="submit"]'),
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => null),
+  ]);
+  await sleep(3500);
+  t = await visibleText(page);
+  if (/captcha|security verification|verify your identity|two-step|verification code|pin sent|checkpoint/i.test(t)) {
+    throw new Error('LinkedIn requires manual verification/MFA/CAPTCHA. Complete it in the browser profile, then rerun.');
+  }
+  if (/sign in|email or phone/i.test(t) && !/start a post|feed/i.test(t)) throw new Error('LinkedIn login failed; check .env credentials or complete login manually.');
+  return true;
+}
+
 async function applyToJob(page, job, state) {
   const pageInfo = await classifyJobPage(page, job);
   job.title = pageInfo.title || job.title;
@@ -406,12 +441,7 @@ async function main() {
   const page = await browser.newPage();
   page.setDefaultTimeout(30000);
   try {
-    await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await sleep(2500);
-    const t = await visibleText(page);
-    if (/sign in|join now|email or phone/i.test(t) && !/start a post|feed/i.test(t)) {
-      throw new Error(`LinkedIn session is not logged in. Open Chromium with profile ${USER_DATA_DIR} and login manually.`);
-    }
+    await loginLinkedInIfNeeded(page);
     const candidates = await scanJobs(page, state);
     console.log(`scanned ${candidates.length} new candidate(s)`);
     let submitted = 0;
