@@ -130,7 +130,7 @@ test('browserApply does not click anchors as final submit controls',async()=>{
 test('CLI jobs apply --approved --run-live for queued Greenhouse job invokes auto-apply dry-test path without network',()=>{
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'jobs-cli-ats-'));
   const s=new JobStore(dir);
-  s.enqueue({id:'gcli',source:'remoteok',applicationMode:'external-ats',title:'AI Engineer',company:'Acme',status:'queued',applyUrl:'https://boards.greenhouse.io/acme/jobs/123'});
+  s.enqueue({id:'gcli',source:'web3-career',applicationMode:'external-ats',title:'AI Engineer',company:'Acme',status:'queued',applyUrl:'https://boards.greenhouse.io/acme/jobs/123'});
   let r=spawnSync(process.execPath,['src/cli.cjs','jobs','approve','--id','gcli','--store',dir],{cwd:path.join(__dirname,'..'),encoding:'utf8'});
   assert.equal(r.status,0,r.stderr);
   r=spawnSync(process.execPath,['src/cli.cjs','jobs','apply','--approved','--run-live','--confirm-live-external-apply','--store',dir],{cwd:path.join(__dirname,'..'),encoding:'utf8',env:{...process.env,HERMES_ATS_DRY_TEST:'1'}});

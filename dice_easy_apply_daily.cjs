@@ -72,6 +72,8 @@ async function loginDiceIfNeeded(page){
   if (!email || !password) throw new Error('Dice session is not logged in and DICE_EMAIL/DICE_PASSWORD are missing from .env');
   await page.goto('https://www.dice.com/dashboard/login', {waitUntil:'domcontentloaded', timeout:60000});
   await sleep(1500);
+  text = await page.evaluate(()=>document.body.innerText || '').catch(()=> '');
+  if (/Anthony Ettinger|Profile Visibility|Your Profile|My Jobs|Recommended Jobs/i.test(text)) return true;
   const emailSelector = 'input[type="email"], input[name="email"], input[autocomplete="username"], input[id*="email" i]';
   await page.waitForSelector(emailSelector, {timeout:30000});
   await page.type(emailSelector, email, {delay:10});
