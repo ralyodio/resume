@@ -27,3 +27,26 @@ test('jobs rotate --include-easy-apply defaults native LinkedIn and Dice runners
   assert.match(r.stdout,/linkedin/);
   assert.match(r.stdout,/dice/);
 });
+
+test('jobs rotate --review-only overrides included live easy-apply flags',()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'jobs-rotate-'));
+  const r=spawnSync(process.execPath,[
+    'src/cli.cjs','jobs','rotate',
+    '--review-only','--include-easy-apply','--run-easy-apply-live','--limit','0','--query','zzzznojobmatchzzzz','--store',dir
+  ],{cwd:__dirname+'/..',encoding:'utf8'});
+  assert.equal(r.status,0,r.stderr);
+  assert.match(r.stdout,/easy-apply skipped/);
+  assert.doesNotMatch(r.stdout,/easy-apply running/);
+});
+
+test('jobs rotate live easy-apply requires explicit confirmation beyond live flag',()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'jobs-rotate-'));
+  const r=spawnSync(process.execPath,[
+    'src/cli.cjs','jobs','rotate',
+    '--include-easy-apply','--run-easy-apply-live','--limit','0','--query','zzzznojobmatchzzzz','--store',dir
+  ],{cwd:__dirname+'/..',encoding:'utf8'});
+  assert.equal(r.status,0,r.stderr);
+  assert.match(r.stdout,/easy-apply dry-run/);
+  assert.match(r.stdout,/confirm-live-easy-apply/);
+  assert.doesNotMatch(r.stdout,/easy-apply running/);
+});

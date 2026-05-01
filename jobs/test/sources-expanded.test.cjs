@@ -26,6 +26,14 @@ test('expanded sources build remote-filtered urls',()=>{
   assert.match(urls.laborx,/laborx\.com\/jobs/);
 });
 
+test('laborx marketplace proposals are review-only and not native apply',()=>{
+  const laborx=getSource('laborx');
+  assert.equal(laborx.source.supportsNativeApply,false);
+  const rows=laborx.parseJobsFromHtml('<article><a href="/jobs/build-web3-app">Build Web3 App</a></article>',{query:'Web3',limit:1});
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].applicationMode,'marketplace-proposal');
+});
+
 test('html adapters parse a simple fixture into normalized review-only records',()=>{
   const html='<article><a href="/remote-jobs/senior-ai-engineer">Senior AI Engineer</a><h3>Acme AI</h3><p>Remote Node React LLM platform role</p></article>';
   const rows=getSource('remotive').parseJobsFromHtml(html,{query:'AI Engineer',limit:1});

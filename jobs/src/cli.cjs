@@ -22,7 +22,7 @@ Usage:
   node src/cli.cjs jobs apply --approved
   node src/cli.cjs jobs rotate --review-only --query "AI Engineer" --limit 10
   node src/cli.cjs jobs rotate --include-easy-apply --dry-run-easy-apply
-  node src/cli.cjs jobs rotate --include-easy-apply --run-easy-apply-live
+  node src/cli.cjs jobs rotate --include-easy-apply --run-easy-apply-live --confirm-live-easy-apply
   node src/cli.cjs sources list
   node src/cli.cjs sources enable builtin
   node src/cli.cjs sources disable indeed
@@ -46,12 +46,16 @@ async function searchSources({store,args,sourceIds}) {
   return count;
 }
 function scoreNew(store){ let n=0; for(const job of store.all().filter(j=>j.status==='new')){ const s=scoreJob(job); store.upsert({...job,...s,status:'scored'},'score'); n++; console.log(`${s.score}\t${s.decision}\t${job.title}\t${job.company}\t${s.reasons.join('; ')}`); } return n; }
-function queueScored(store, min){ let n=0; for(const job of store.all().filter(j=>(j.score||0)>=min && ['new','scored'].includes(j.status))){ const resumePath=selectResume(job); const coverLetter=generateCoverLetter(job); store.upsert({...job,status:'queued',resumePath,coverLetter},'queue'); n++; console.log(`queued\t${job.score}\t${job.title}\t${job.company}`); } return n; }
+function queueScored(store, min){ let n=0; const queueDecisions=new Set(['queue-for-review','auto-apply-eligible']); for(const job of store.all().filter(j=>(j.score||0)>=min && ['new','scored'].includes(j.status) && queueDecisions.has(j.decision))){ const resumePath=selectResume(job); const coverLetter=generateCoverLetter(job); store.upsert({...job,status:'queued',resumePath,coverLetter},'queue'); n++; console.log(`queued\t${job.score}\t${job.title}\t${job.company}`); } return n; }
 function easyApplySources(){ return listSources().filter(s=>s.supportsNativeApply && s.supportsEasyApply); }
 async function runEasyApplyRotation({args,store}){
   const include = Boolean(args['include-easy-apply'] || args['include-legacy']);
+  if(args['review-only']) args['skip-easy-apply']=true;
   if(!include || args['skip-easy-apply'] || args['skip-legacy']) { console.log('easy-apply skipped'); return; }
-  const dryRun = args['dry-run-easy-apply'] !== false && args['run-easy-apply-live'] !== true && args['run-legacy-live'] !== true;
+  const liveRequested = args['run-easy-apply-live'] === true || args['run-legacy-live'] === true;
+  const liveConfirmed = args['confirm-live-easy-apply'] === true;
+  const dryRun = !liveRequested || !liveConfirmed;
+  if(liveRequested && !liveConfirmed) console.log('easy-apply live requested but not confirmed; dry-run only. Add --confirm-live-easy-apply to submit live.');
   for (const s of easyApplySources()) {
     const adapter=getSource(s.id);
     const plan=adapter.buildRunnerPlan({dryRun, query:args.query||'', limit:Number(args['easy-apply-limit']||args.limit||5), storeDir:store.storeDir});
