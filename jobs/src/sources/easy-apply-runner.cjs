@@ -21,6 +21,7 @@ function buildRunnerPlan({ id, script, dryRun=true, query='', limit=5, storeDir=
       MAX_APPLY: max,
       SEARCHES: splitSearches(query, extraEnv.SEARCHES || defaultSearches(id)),
       HERMES_JOBS_STORE: storeDir || '',
+      CHROME: process.env.CHROME || require('puppeteer').executablePath(),
       ...extraEnv,
     },
   };

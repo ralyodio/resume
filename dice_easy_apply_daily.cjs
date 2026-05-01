@@ -5,6 +5,7 @@ const puppeteer = require('puppeteer');
 const RESUME_PDF = process.env.RESUME_PDF || '/home/ettinger/Desktop/resume/anthony.ettinger.resume4.pdf';
 const COVER_PDF = process.env.COVER_PDF || '/home/ettinger/Desktop/resume/anthony.ettinger.cover4.pdf';
 const CHROME_PROFILE = process.env.CHROME_PROFILE || `${process.env.HOME}/.cache/hermes-dice-chrome`;
+const CHROME = process.env.CHROME || puppeteer.executablePath();
 const STATE_DIR = process.env.STATE_DIR || '/tmp/dice-easyapply-daily';
 const STATE_FILE = path.join(STATE_DIR, 'state.json');
 const LOG_FILE = path.join(STATE_DIR, 'results.jsonl');
@@ -151,7 +152,7 @@ async function applyJob(page, job){
   return {status:'unknown_after_submit', reason:norm(text).slice(0,400)};
 }
 (async()=>{
-  const browser = await puppeteer.launch({headless:false, executablePath:'/snap/bin/chromium', userDataDir:CHROME_PROFILE, defaultViewport:null, args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--start-maximized']});
+  const browser = await puppeteer.launch({headless:false, executablePath:CHROME, userDataDir:CHROME_PROFILE, defaultViewport:null, args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--start-maximized']});
   let page = await browser.newPage(); page.setDefaultTimeout(30000);
   page.on('dialog', async d => {
     console.log(`dialog:${d.type()}:${d.message()}`);
