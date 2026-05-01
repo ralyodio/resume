@@ -19,7 +19,7 @@ Usage:
   node src/cli.cjs jobs review
   node src/cli.cjs jobs approve --id <jobId>
   node src/cli.cjs jobs skip --id <jobId> --reason "not a fit"
-  node src/cli.cjs jobs apply --approved
+  node src/cli.cjs jobs apply --approved [--run-live --confirm-live-external-apply]
   node src/cli.cjs jobs rotate --review-only --query "AI Engineer" --limit 10
   node src/cli.cjs jobs rotate --include-easy-apply --dry-run-easy-apply
   node src/cli.cjs jobs rotate --include-easy-apply --run-easy-apply-live --confirm-live-easy-apply
@@ -29,7 +29,8 @@ Usage:
   node src/cli.cjs blacklist company "Some Staffing Agency"
   node src/cli.cjs blacklist keyword "clearance required"
 
-Commands include jobs search, jobs score, jobs queue, jobs review, jobs approve, jobs skip, jobs apply, jobs rotate.`); }
+Commands include jobs search, jobs score, jobs queue, jobs review, jobs approve, jobs skip, jobs apply, jobs rotate.
+External apply supports conservative auto-apply for Greenhouse, Lever, Ashby, Workable, SmartRecruiters, and mailto email drafts; live external ATS submission requires --run-live --confirm-live-external-apply and still submits only when common fields are filled and no captcha/login/unknown required questions are detected.`); }
 function parse(argv){ const out={_:[]}; for(let i=0;i<argv.length;i++){ const a=argv[i]; if(a.startsWith('--')){ const k=a.slice(2); const v=argv[i+1]&&!argv[i+1].startsWith('--')?argv[++i]:true; out[k]=v; } else out._.push(a); } return out; }
 
 async function searchSources({store,args,sourceIds}) {
@@ -77,7 +78,7 @@ async function main(argv=process.argv.slice(2)){ const args=parse(argv); if(!arg
   if(cmd==='review'){ const rows=store.pendingReview(); if(!rows.length){ console.log('No queued jobs.'); return; } for(const j of rows) console.log(`---\n${j.id}\n${j.score} ${j.title} @ ${j.company}\n${j.source} ${j.applicationMode}\n${j.applyUrl||j.sourceUrl}\nReasons: ${(j.reasons||[]).join('; ')}\nRisks: ${(j.riskFlags||[]).join('; ')||'none'}\nResume: ${j.resumePath||''}\nCover letter:\n${j.coverLetter||''}`); return; }
   if(cmd==='approve'){ const id=args.id||args._[2]; if(!id) throw new Error('jobs approve requires --id <jobId>'); const j=store.approve(id); console.log(`approved\t${j.id}`); return; }
   if(cmd==='skip'){ const id=args.id||args._[2]; if(!id) throw new Error('jobs skip requires --id <jobId>'); const j=store.skip(id,args.reason||'user-skip'); console.log(`skipped\t${j.id}\t${j.skipReason}`); return; }
-  if(cmd==='apply'){ let n=0; for(const job of store.all().filter(j=>args.approved?j.status==='approved':false)){ const adapter = listSources().some(s=>s.id===job.source) ? getSource(job.source) : null; if(adapter && adapter.source.supportsNativeApply){ const r=await adapter.applyToJob(job,{dryRun:args['run-live']!==true,storeDir:store.storeDir,limit:1}); console.log(`native ${r.status}\t${job.id}\t${job.source}\t${r.command||''}`); n++; continue; } const r=await openExternalApplication({job,dryRun:true,storeDir:store.storeDir}); console.log(`prepared\t${job.id}\t${r.url}`); n++; } console.error(`prepared ${n}; native easy-apply runs require --run-live for submission`); return; }
+  if(cmd==='apply'){ let n=0; let submitted=0; const externalLive=args['run-live']===true && args['confirm-live-external-apply']===true; if(args['run-live']===true && !args['confirm-live-external-apply']) console.error('external live requested but not confirmed; dry-run only. Add --confirm-live-external-apply to submit supported ATS applications.'); for(const job of store.all().filter(j=>args.approved?j.status==='approved':false)){ const adapter = listSources().some(s=>s.id===job.source) ? getSource(job.source) : null; if(adapter && adapter.source.supportsNativeApply){ const r=await adapter.applyToJob(job,{dryRun:args['run-live']!==true,storeDir:store.storeDir,limit:1}); console.log(`native ${r.status}\t${job.id}\t${job.source}\t${r.command||''}`); if(r.status==='submitted'){ store.markApplied(job.id,{applyResult:r}); submitted++; } n++; continue; } const r=await openExternalApplication({job,dryRun:!externalLive,submit:externalLive,storeDir:store.storeDir,dryTest:process.env.HERMES_ATS_DRY_TEST==='1'}); console.log(`auto-apply\t${r.status}\t${job.id}\t${r.ats||'unknown'}\t${r.url||''}\t${r.resumePath||''}\t${r.reason||''}${r.draftPath?`\t${r.draftPath}`:''}`); if(r.status==='submitted'){ store.markApplied(job.id,{applyResult:r}); submitted++; } else if(r.status==='needs-human-review' || r.status==='unsupported') { store.transition(job.id,'needs-human-review',{applyResult:r}); } else if(r.status==='failed') { store.markFailed(job.id,r.reason||'apply failed'); } n++; } console.error(`processed ${n}; submitted ${submitted}; external live submit requires --run-live --confirm-live-external-apply and still falls back to needs-human-review when unsafe`); return; }
   if(cmd==='rotate'){
     const sourceIds = listSources().filter(s=>!s.supportsNativeApply).map(s=>s.id);
     const found = Number(args.limit||25) > 0 ? await searchSources({store,args,sourceIds}) : 0;
