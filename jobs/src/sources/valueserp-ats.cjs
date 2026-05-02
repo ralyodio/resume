@@ -65,7 +65,7 @@ function buildValueSerpUrl({apiKey='VALUE_SERP_API_KEY', host, query='', page=1,
 function organicResults(payload){ return Array.isArray(payload && payload.organic_results) ? payload.organic_results : []; }
 function canonicalUrl(u){ try{ const x=new URL(u); x.hash=''; return x.toString(); }catch{return u||'';} }
 function urlSlug(u){ return Buffer.from(canonicalUrl(u)).toString('base64url').slice(0,48); }
-function resultToJob(result,{target,query}){
+function resultToJob(result,{target,query,remoteOnly=false}){
   const link=canonicalUrl(result.link || result.url || '');
   if(!link) return null;
   if(target.host && !new RegExp(`^https?://([^/]+\\.)?${target.host.replace(/\./g,'\\.')}/`,'i').test(link)) return null;
@@ -73,8 +73,9 @@ function resultToJob(result,{target,query}){
   const snippet=stripHtml(result.snippet || result.description || '');
   const email=(snippet.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)||[])[0];
   const companyGuess=(result.displayed_link || '').replace(/^https?:\/\//,'').split('/')[1] || target.id;
-  const text=`${title} ${snippet}`;
-  const remote=/\bremote\b|work from home|anywhere|distributed/i.test(text);
+  const remoteText=`${title} ${snippet} ${link} ${result.displayed_link || ''}`;
+  const remote=/\bremote\b|work from home|work from anywhere|anywhere|distributed|wfh/i.test(remoteText);
+  if(remoteOnly && !remote) return null;
   const applyUrl=email ? `mailto:${email}` : link;
   const mode=target.id==='email' && email ? 'email' : classifyApplicationMode({applyUrl});
   return normalizeJob({
@@ -108,7 +109,7 @@ async function searchTarget(target, opts={}){
     const results=organicResults(payload);
     if(!results.length) break;
     for(const r of results){
-      const job=resultToJob(r,{target,query:opts.query||''});
+      const job=resultToJob(r,{target,query:opts.query||'',remoteOnly:opts.remoteOnly!==false});
       if(!job || seen.has(job.sourceUrl)) continue;
       seen.add(job.sourceUrl); out.push(job);
       if(out.length>=limit) return out;

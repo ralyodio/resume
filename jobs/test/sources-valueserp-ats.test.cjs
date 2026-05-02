@@ -50,6 +50,17 @@ test('rejects generic hosts even if path mentions greenhouse',()=>{
   assert.equal(job,null);
 });
 
+test('remote-only normalization rejects results without a remote signal',()=>{
+  const job=valueserp.resultToJob({
+    position:1,
+    title:'Senior Claude Engineer - Acme',
+    link:'https://boards.greenhouse.io/acme/jobs/123?gh_src=x',
+    displayed_link:'https://boards.greenhouse.io/acme/jobs/123',
+    snippet:'Onsite role building LLM apps with Claude and Node.js.'
+  },{target:{id:'greenhouse',host:'boards.greenhouse.io'},query:'claude',remoteOnly:true});
+  assert.equal(job,null);
+});
+
 test('email target can normalize mailto application results from snippets',()=>{
   const job=valueserp.resultToJob({
     position:1,

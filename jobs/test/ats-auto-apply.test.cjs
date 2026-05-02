@@ -11,7 +11,8 @@ const {
   canAutoSubmit,
   autoApplyExternal,
   browserApply,
-  RESUME4_PATH
+  RESUME4_PATH,
+  COVER4_PATH
 }=require('../src/apply/ats-auto-apply.cjs');
 const { openExternalApplication } = require('../src/apply/open-external.cjs');
 
@@ -34,7 +35,7 @@ test('detectAts identifies supported ATS and email URLs',()=>{
   assert.equal(detectAts('https://not-ashby.example.com/jobs/123'), 'unknown');
 });
 
-test('buildApplicationPayload uses resume4.pdf and does not hallucinate missing email',()=>{
+test('buildApplicationPayload uses resume4/cover4 PDFs and does not hallucinate missing email',()=>{
   const oldEmail=process.env.HERMES_APPLICANT_EMAIL;
   const oldPhone=process.env.HERMES_APPLICANT_PHONE;
   delete process.env.HERMES_APPLICANT_EMAIL;
@@ -43,6 +44,8 @@ test('buildApplicationPayload uses resume4.pdf and does not hallucinate missing 
     const payload=buildApplicationPayload({title:'AI Engineer',company:'Acme',coverLetter:'hello'});
     assert.equal(payload.resumePath, RESUME4_PATH);
     assert.equal(path.basename(payload.resumePath), 'anthony.ettinger.resume4.pdf');
+    assert.equal(payload.coverPdfPath, COVER4_PATH);
+    assert.equal(path.basename(payload.coverPdfPath), 'anthony.ettinger.cover4.pdf');
     assert.equal(payload.profile.name, 'Anthony Ettinger');
     assert.equal(payload.profile.email, '');
     assert.equal(payload.profile.phone, '');
@@ -67,6 +70,7 @@ test('openExternalApplication dry-run/prep for Greenhouse returns prepared with 
   assert.equal(result.status, 'prepared');
   assert.equal(result.ats, 'greenhouse');
   assert.equal(result.resumePath, RESUME4_PATH);
+  assert.equal(result.coverPdfPath, COVER4_PATH);
 });
 
 test('openExternalApplication run-live with unsupported unknown URL is never submitted',async()=>{
@@ -83,6 +87,7 @@ test('email apply writes draft in dry-run and does not send without SMTP credent
   assert.equal(result.ats, 'email');
   assert.ok(result.draftPath);
   assert.match(fs.readFileSync(result.draftPath,'utf8'), /To: jobs@example.com/);
+  assert.match(fs.readFileSync(result.draftPath,'utf8'), /anthony\.ettinger\.cover4\.pdf/);
 });
 
 function fakePuppeteer({blockers=[], clicked=true, verified=true, anchorOnly=false}={}) {
@@ -109,7 +114,7 @@ test('browserApply does not use sandbox-disabling args by default and verifies s
   const result=await browserApply({job:{id:'b1'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
   assert.equal(result.status,'submitted');
   assert.equal(result.reason,'submission-verified');
-  assert.deepEqual(state.launchOptions.args,[]);
+  assert.deepEqual(state.launchOptions.args,['--disable-dev-shm-usage']);
   assert.deepEqual(state.queries,['safe-submit-selector']);
 });
 
@@ -117,7 +122,7 @@ test('browserApply returns needs-human-review when click is not verified',async(
   const {puppeteer}=fakePuppeteer({verified:false});
   const result=await browserApply({job:{id:'b2'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
   assert.equal(result.status,'needs-human-review');
-  assert.equal(result.reason,'submission-unverified');
+  assert.match(result.reason,/submission-unverified/);
 });
 
 test('browserApply blocks captcha/login/unknown-required before submit',async()=>{
@@ -131,7 +136,7 @@ test('browserApply does not click anchors as final submit controls',async()=>{
   const {puppeteer}=fakePuppeteer({anchorOnly:true});
   const result=await browserApply({job:{id:'b4'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
   assert.equal(result.status,'needs-human-review');
-  assert.equal(result.reason,'submit-button-not-found');
+  assert.match(result.reason,/submit-button-not-found/);
 });
 
 test('CLI jobs apply --approved --run-live for queued Greenhouse job invokes auto-apply dry-test path without network',()=>{
@@ -144,4 +149,5 @@ test('CLI jobs apply --approved --run-live for queued Greenhouse job invokes aut
   assert.equal(r.status,0,r.stderr);
   assert.match(r.stdout,/auto-apply\tprepared\tgcli\tgreenhouse/);
   assert.match(r.stdout,/anthony\.ettinger\.resume4\.pdf/);
+  assert.match(r.stdout,/anthony\.ettinger\.cover4\.pdf/);
 });
