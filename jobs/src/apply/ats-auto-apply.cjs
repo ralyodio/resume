@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { appendAuditEvent } = require('../audit/audit-log.cjs');
+const { ATS_ADAPTERS, getAtsAdapter } = require('./ats-adapters.cjs');
 
 const RESUME4_PATH = '/home/ettinger/Desktop/resume/anthony.ettinger.resume4.pdf';
 const COVER4_PATH = '/home/ettinger/Desktop/resume/anthony.ettinger.cover4.pdf';
@@ -29,13 +30,10 @@ function detectAts(url) {
 }
 
 function normalizeApplicationUrl(url, ats) {
+  const adapter = getAtsAdapter(ats);
+  if (typeof adapter.normalizeUrl === 'function') return adapter.normalizeUrl(url);
   const u = safeUrl(url);
   if (!u) return url || '';
-  const path = u.pathname.replace(/\/+$/,'');
-  if (ats === 'ashby' && !/\/application$/i.test(path)) { u.pathname = `${path}/application`; return u.toString(); }
-  if (ats === 'workable' && !/\/apply$/i.test(path)) { u.pathname = `${path}/apply/`; return u.toString(); }
-  if (ats === 'breezy' && !/\/apply$/i.test(path)) { u.pathname = `${path}/apply`; return u.toString(); }
-  if (ats === 'icims' && !/\/login$/i.test(path) && !u.searchParams.has('mode')) { u.searchParams.set('mode','apply'); return u.toString(); }
   return u.toString();
 }
 function decodeHtmlEntities(s) {
@@ -547,42 +545,161 @@ async function fillRemainingRequiredFields(page, payload) {
     }
   }, fallback).catch(()=>{});
 }
+async function fillAdapterSpecificFields(page, payload) {
+  const a = {
+    ats: payload.ats,
+    name: payload.profile?.name || 'Anthony Ettinger',
+    firstName: payload.profile?.firstName || 'Anthony',
+    lastName: payload.profile?.lastName || 'Ettinger',
+    email: payload.profile?.email || '',
+    phone: payload.profile?.phone || '',
+    location: payload.profile?.location || process.env.HERMES_APPLICANT_LOCATION || 'Seattle, WA, USA',
+    city: process.env.HERMES_APPLICANT_CITY || 'Seattle',
+    state: process.env.HERMES_APPLICANT_STATE || 'WA',
+    postal: process.env.HERMES_APPLICANT_POSTAL || process.env.HERMES_APPLICANT_ZIP || '',
+    country: process.env.HERMES_APPLICANT_COUNTRY || 'United States',
+    linkedin: payload.profile?.linkedin || '',
+    github: payload.profile?.github || '',
+    website: payload.profile?.website || payload.profile?.github || payload.profile?.linkedin || '',
+    workAuth: payload.profile?.workAuth || 'US Citizen',
+    salaryAnnual: process.env.HERMES_APPLICANT_DESIRED_SALARY || '$350,000',
+    hourlyRate: process.env.HERMES_APPLICANT_HOURLY_RATE || '$135/hour',
+    start: process.env.HERMES_APPLICANT_START_DATE || 'Immediately',
+    currentCompany: process.env.HERMES_APPLICANT_CURRENT_COMPANY || 'Independent Consultant',
+    coverLetter: payload.coverLetter || 'Please see my attached resume and cover letter.'
+  };
+  await page.evaluate((a) => {
+    function visible(el){ return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects?.().length)); }
+    function labelFor(el){
+      const id = el.id ? document.querySelector?.(`label[for="${CSS.escape(el.id)}"]`)?.innerText : '';
+      const labels = el.labels ? Array.from(el.labels).map(l => l.innerText).join(' ') : '';
+      const ariaBy = (el.getAttribute?.('aria-labelledby') || '').split(/\s+/).map(id => document.getElementById?.(id)?.innerText || '').join(' ');
+      const near = el.closest?.('label,.field,.form-group,.question,.questionnaire-question,.application-question,.form-field,.control,.bzy-form-group,div')?.innerText || '';
+      return `${id||''} ${labels||''} ${ariaBy||''} ${near||''} ${el.name||''} ${el.id||''} ${el.placeholder||''} ${el.getAttribute?.('aria-label')||''}`.replace(/\s+/g,' ').toLowerCase();
+    }
+    function setValue(el, value){
+      if (!value || !visible(el) || el.disabled || el.readOnly) return false;
+      const type = (el.type || '').toLowerCase();
+      if (['hidden','file','submit','button','checkbox','radio'].includes(type)) return false;
+      if (el.value && !/^resumator_no_selection$|^\?$/.test(el.value)) return false;
+      const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+      if (desc?.set) desc.set.call(el, value); else el.value = value;
+      el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); el.dispatchEvent(new Event('blur',{bubbles:true}));
+      return true;
+    }
+    function chooseSelect(sel, patterns){
+      if (!visible(sel) || sel.disabled) return false;
+      if (sel.value && !/^resumator_no_selection$|^\?$/.test(sel.value)) return false;
+      const opts = Array.from(sel.options || []);
+      for (const re of patterns) {
+        const opt = opts.find(o => o.value !== '' && !/select|choose/i.test(o.text || '') && (re.test(o.text || '') || re.test(o.value || '')));
+        if (opt) { sel.value = opt.value; sel.dispatchEvent(new Event('change',{bubbles:true})); return true; }
+      }
+      return false;
+    }
+    // Breezy stable names
+    for (const el of document.querySelectorAll('input,textarea')) {
+      if (el.name === 'cName') setValue(el, a.name);
+      else if (el.name === 'cEmail') setValue(el, a.email);
+      else if (el.name === 'cPhoneNumber') setValue(el, a.phone);
+      else if (el.name === 'cAddress' || el.id === 'fullAddress') setValue(el, a.location);
+      else if (el.name === 'cSalary') setValue(el, a.salaryAnnual);
+      else if (el.name === 'cSummary') setValue(el, a.coverLetter);
+      else if (el.name === 'cCoverLetter') setValue(el, a.coverLetter);
+      else if (el.name === 'org') setValue(el, a.currentCompany);
+      else if (/urls\[LinkedIn\]/i.test(el.name)) setValue(el, a.linkedin);
+      else if (/urls\[GitHub\]/i.test(el.name)) setValue(el, a.github);
+      else if (/urls\[Portfolio\]/i.test(el.name)) setValue(el, a.website);
+    }
+    // Workable compound free-text question
+    for (const el of document.querySelectorAll('textarea,input')) {
+      const label = labelFor(el);
+      if (/linkedin url.*current location.*expected salary|expected salary.*work authori|available to start/.test(label)) {
+        setValue(el, `LinkedIn: ${a.linkedin}\nCurrent location: ${a.location}\nExpected salary: ${a.salaryAnnual} USD per year\nRemote/hybrid/on-site preference: Remote\nWork authorization: ${a.workAuth}\nAvailable to start: ${a.start}`);
+      } else if (/vibe coded experience|build.*ai.*prototype|ai.*project/.test(label)) {
+        setValue(el, 'I have built production AI and automation systems, including LLM-powered workflows, browser automation, data pipelines, and full-stack applications. Please see my resume and portfolio for examples.');
+      }
+    }
+    // Workable/Ashby/Lever radio groups: answer positively only for skill/authorization questions, no for sponsorship.
+    const groups = new Map();
+    for (const r of document.querySelectorAll('input[type=radio]')) {
+      if (!visible(r) || r.disabled || r.checked) continue;
+      const key = r.name || r.id || Math.random().toString();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    }
+    for (const group of groups.values()) {
+      const whole = group.map(labelFor).join(' ');
+      const want = /sponsor|visa/.test(whole) ? [/\bno\b/i, /false/i]
+        : /production ml|reinforcement|closed-loop|software engineering|python|required|experience|authorized|eligible|work auth|willing|background|credit/.test(whole) ? [/\byes\b/i, /true/i, /authorized/i, /5\+|more than|senior/i]
+        : [];
+      for (const re of want) {
+        const hit = group.find(r => re.test(labelFor(r)) || re.test(r.value || ''));
+        if (hit) { hit.click(); break; }
+      }
+    }
+    // ApplyToJob/JazzHR and Jobvite selects
+    for (const sel of document.querySelectorAll('select')) {
+      const label = labelFor(sel);
+      if (/country/.test(label)) chooseSelect(sel, [/united states/i, /^us$/i, /^usa$/i]);
+      else if (/state/.test(label)) chooseSelect(sel, [/washington/i, /^wa$/i]);
+      else if (/citizenship|eligible|authorized|legally authorized|employment eligibility/.test(label)) chooseSelect(sel, [/yes/i, /citizen/i, /authorized/i, /permanent resident/i]);
+      else if (/sponsor|visa/.test(label)) chooseSelect(sel, [/^no$/i, /not.*require/i]);
+      else if (/background|credit/.test(label)) chooseSelect(sel, [/^yes$/i]);
+      else if (/currently reside.*fl.*ga.*il.*tx|following states/.test(label)) chooseSelect(sel, [/^no$/i]);
+      else if (/contact.*text/.test(label)) chooseSelect(sel, [/^no$/i]);
+      else if (/how did you learn|source/.test(label)) chooseSelect(sel, [/linkedin/i, /job board/i, /other/i, /website/i]);
+      else if (/location.*applying|which location/.test(label)) chooseSelect(sel, [/remote/i, /san francisco/i, /new york/i]);
+    }
+  }, a).catch(()=>{});
+}
+
 async function findBlockers(page) {
   return page.evaluate(() => {
     const text = document.body ? document.body.innerText.toLowerCase() : '';
     const blockers = [];
     function visible(el){ return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects?.().length)); }
+    function captchaChallenge(el){
+      const ident = `${el.tagName||''} ${el.name||''} ${el.id||''} ${el.className||''} ${el.src||''} ${el.getAttribute?.('src')||''} ${el.getAttribute?.('title')||''} ${el.getAttribute?.('aria-label')||''}`.toLowerCase();
+      if (/g-recaptcha-response|grecaptcha-badge|grecaptcha-logo|grecaptcha-error|recaptcha-token|hcaptcha-response|size=invisible/.test(ident)) return false;
+      if (!visible(el)) return false;
+      if ((el.tagName || '').toLowerCase() === 'iframe') return (el.offsetWidth || 0) > 100 && (el.offsetHeight || 0) > 60;
+      return /captcha|recaptcha|hcaptcha|challenge|verification/.test(ident);
+    }
     const captchaText = /(?:solve|complete|verify|verification|challenge|security).*?(?:captcha|recaptcha|hcaptcha)|(?:captcha|recaptcha|hcaptcha).*?(?:required|challenge|verification)/.test(text);
-    const captchaElements = Array.from(document.querySelectorAll('[class*=captcha], [id*=captcha], iframe[src*=captcha], iframe[src*=recaptcha], iframe[src*=hcaptcha]')).filter(visible);
+    const captchaElements = Array.from(document.querySelectorAll('[class*=captcha], [id*=captcha], iframe[src*=captcha], iframe[src*=recaptcha], iframe[src*=hcaptcha]')).filter(captchaChallenge);
     if (captchaText || captchaElements.length) blockers.push('captcha');
-    if (document.querySelector('input[type=password]')) blockers.push('login');
+    if (Array.from(document.querySelectorAll('input[type=password]')).some(visible)) blockers.push('login');
     const unknownRequired = [];
-    const fields = Array.from(document.querySelectorAll('input, textarea, select')).filter(el => el.required || el.getAttribute('aria-required') === 'true');
+    const fields = Array.from(document.querySelectorAll('input, textarea, select')).filter(el => (el.required || el.getAttribute('aria-required') === 'true') && visible(el) && !el.disabled && el.getAttribute('aria-hidden') !== 'true' && el.tabIndex !== -1);
     for (const el of fields) {
       const type = (el.getAttribute('type') || el.tagName || '').toLowerCase();
       const name = `${el.name||''} ${el.id||''} ${el.placeholder||''} ${el.getAttribute('aria-label')||''}`.toLowerCase();
       if (['hidden','submit','button'].includes(type)) continue;
       if (type === 'file') { if (!el.value) blockers.push('missing-required-common:file-upload'); continue; }
-      if (/first|last|name|email|phone|location|linkedin|github|website|url|cover|resume/.test(name)) { if (!el.value) blockers.push(`missing-required-common:${name.trim() || type || 'field'}`); continue; }
+      if (/first|last|name|email|phone|location|linkedin|github|website|url|cover|resume|country|state|city|postal|zip|address|salary|compensation|sponsor|visa|authorized|eligible|work.?auth/.test(name)) { if (!el.value) blockers.push(`missing-required-common:${name.trim() || type || 'field'}`); continue; }
       if (!el.value) unknownRequired.push(name.trim() || type || 'required-field');
     }
     if (unknownRequired.length) blockers.push(`unknown-required:${unknownRequired.slice(0,5).join(',')}`);
     return blockers;
   }).catch(err => [`blocker-check-failed:${err.message}`]);
 }
-async function clickInitialApplyLink(page) {
-  return page.evaluate(() => {
-    const hasFields = document.querySelector('input:not([type=hidden]), textarea, select');
-    if (hasFields) return false;
-    const candidates = Array.from(document.querySelectorAll('a, button'));
+async function clickInitialApplyLink(page, ats = '') {
+  const adapter = getAtsAdapter(ats);
+  return page.evaluate((adapterSpec) => {
+    function visible(el){ return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length); }
+    const initialRes = (adapterSpec.initialApplyTexts || []).map(s => new RegExp(s.source, s.flags));
+    const candidates = Array.from(document.querySelectorAll('a, button')).filter(visible);
     const el = candidates.find(e => {
-      const text = (e.innerText || e.value || e.getAttribute('aria-label') || '').trim();
+      const text = (e.innerText || e.value || e.getAttribute('aria-label') || '').replace(/\s+/g,' ').trim();
       const href = e.href || '';
-      return /^(apply|apply now|apply to position|apply for this job|apply manually|autofill with resume)$/i.test(text) || /\/(apply|application)(\/|$|\?)/i.test(href);
+      if (/submit|share|back|view|website|cookie|dismiss|allow|reject|linkedin|indeed|upload|import|resume|cv/i.test(text)) return false;
+      return initialRes.some(re => re.test(text)) || /^(apply|apply now|apply to position|apply for this job|apply manually|autofill with resume)$/i.test(text) || /\/(apply|application)(\/|$|\?)/i.test(href);
     });
     if (el) { el.click(); return true; }
     return false;
-  }).catch(()=>false);
+  }, { initialApplyTexts: (adapter.initialApplyTexts || []).map(re => ({ source: re.source, flags: re.flags })) }).catch(()=>false);
 }
 async function clickProgressButton(page) {
   return page.evaluate(() => {
@@ -597,18 +714,23 @@ async function clickProgressButton(page) {
     return '';
   }).catch(()=>'');
 }
-async function clickFinalSubmit(page) {
-  return page.evaluate(() => {
+async function clickFinalSubmit(page, ats = '') {
+  const adapter = getAtsAdapter(ats);
+  const selectors = adapter.finalSubmitSelectors || ['button, input[type=submit], input[type=button], a[role=button], a[href="#"], a[href$="#"], #resumator-submit-resume'];
+  return page.evaluate((adapterSpec) => {
     function visible(el){ return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length); }
-    const candidates = Array.from(document.querySelectorAll('button, input[type=submit], input[type=button], a[role=button], a[href="#"], a[href="javascript:void(0)"]')).filter(visible);
+    const selector = adapterSpec.selectors.join(', ');
+    const textRes = (adapterSpec.texts || []).map(s => new RegExp(s.source, s.flags));
+    const candidates = Array.from(document.querySelectorAll(selector)).filter(visible);
     const el = candidates.find(e => {
       const text = (e.innerText || e.value || e.getAttribute('aria-label') || '').replace(/\s+/g,' ').trim();
       if (/cookie|linkedin|indeed|google|facebook|back|cancel|dismiss|reject|decline|share/i.test(text)) return false;
-      return /^(submit|submit application|send application|apply|apply now|apply for this job)$/i.test(text);
+      if (adapterSpec.id === 'applytojob' && e.id === 'resumator-submit-resume' && /^submit application$/i.test(text)) return true;
+      return textRes.some(re => re.test(text)) || /^(submit|submit application|send application|apply|apply now|apply for this job)$/i.test(text);
     });
     if (el) { el.click(); return true; }
     return false;
-  });
+  }, { id: adapter.id, selectors, texts: (adapter.finalSubmitTexts || []).map(re => ({ source: re.source, flags: re.flags })) }).catch(()=>false);
 }
 async function ensureNonEmptyPage(page) {
   const empty = await page.evaluate(() => !(document.body?.innerText || '').trim()).catch(()=>false);
@@ -636,6 +758,149 @@ async function verifySubmission(page, beforeUrl) {
     return successText || urlChangedToSuccess;
   }, beforeUrl).catch(() => false);
 }
+async function detectCaptchaInfo(page) {
+  return page.evaluate(() => {
+    // hCaptcha iframe
+    const hcIframe = document.querySelector('iframe[src*="hcaptcha"]');
+    if (hcIframe) {
+      const m = (hcIframe.src || '').match(/[?&]sitekey=([^&]+)/);
+      if (m) return { type: 'hcaptcha', sitekey: m[1] };
+    }
+    const hcDiv = document.querySelector('.h-captcha[data-sitekey], [data-hcaptcha-widget-id]');
+    if (hcDiv) return { type: 'hcaptcha', sitekey: hcDiv.getAttribute('data-sitekey') || hcDiv.getAttribute('data-hcaptcha-widget-id') || '' };
+    // reCAPTCHA v2/v3 iframe
+    const rcIframe = document.querySelector('iframe[src*="recaptcha"][src*="/anchor"]');
+    if (rcIframe) {
+      const m = (rcIframe.src || '').match(/[?&]k=([^&]+)/);
+      if (m) return { type: 'recaptcha', sitekey: m[1] };
+    }
+    // reCAPTCHA bframe iframe (Jobvite, ApplyToJob)
+    const rcBframe = document.querySelector('iframe[src*="recaptcha"][src*="/bframe"]');
+    if (rcBframe) {
+      const m = (rcBframe.src || '').match(/[?&]k=([^&]+)/);
+      if (m) return { type: 'recaptcha', sitekey: m[1] };
+    }
+    const rcDiv = document.querySelector('.g-recaptcha[data-sitekey]');
+    if (rcDiv) return { type: 'recaptcha', sitekey: rcDiv.getAttribute('data-sitekey') || '' };
+    // sitekey in page HTML/scripts — broadened patterns
+    const html = document.documentElement.innerHTML;
+    const rcPatterns = [
+      /"sitekey"\s*:\s*"([^"]{20,})"/,
+      /sitekey['":\s]+['"]([A-Za-z0-9_\-]{20,})['"]/,
+      /data-sitekey=['"]([^'"]{20,})['"]/,
+      /grecaptcha\.render\([^)]*['"]([A-Za-z0-9_\-]{20,})['"]/,
+      /recaptcha[^]*?k=([A-Za-z0-9_\-]{20,})/,
+    ];
+    for (const p of rcPatterns) {
+      const m = html.match(p);
+      if (m && m[1]) {
+        const ctx = html.slice(Math.max(0, html.indexOf(m[1]) - 300), html.indexOf(m[1]));
+        const type = /hcaptcha/i.test(ctx) ? 'hcaptcha' : 'recaptcha';
+        return { type, sitekey: m[1] };
+      }
+    }
+    return null;
+  }).catch(() => null);
+}
+
+async function solveWithCapsolver(type, sitekey, pageUrl) {
+  const apiKey = process.env.CAPSOLVER_API_KEY;
+  if (!apiKey) throw new Error('CAPSOLVER_API_KEY not set');
+  const taskType = type === 'hcaptcha' ? 'HCaptchaTaskProxyless' : 'ReCaptchaV2TaskProxyless';
+  const createRes = await fetch('https://api.capsolver.com/createTask', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ clientKey: apiKey, task: { type: taskType, websiteURL: pageUrl, websiteKey: sitekey } })
+  });
+  const created = await createRes.json();
+  if (created.errorId) throw new Error(`CapSolver: ${created.errorDescription}`);
+  const taskId = created.taskId;
+  for (let i = 0; i < 36; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    const pollRes = await fetch('https://api.capsolver.com/getTaskResult', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ clientKey: apiKey, taskId })
+    });
+    const poll = await pollRes.json();
+    if (poll.status === 'ready') return poll.solution?.gRecaptchaResponse || poll.solution?.token;
+    if (poll.errorId) throw new Error(`CapSolver poll: ${poll.errorDescription}`);
+  }
+  throw new Error('CapSolver timeout');
+}
+
+async function solveWith2captcha(type, sitekey, pageUrl) {
+  const apiKey = process.env.TWOCAPTCHA_API_KEY;
+  if (!apiKey) throw new Error('TWOCAPTCHA_API_KEY not set');
+  const method = type === 'hcaptcha' ? 'hcaptcha' : 'userrecaptcha';
+  const keyParam = type === 'hcaptcha' ? 'sitekey' : 'googlekey';
+  const submitRes = await fetch(`https://2captcha.com/in.php?key=${apiKey}&method=${method}&${keyParam}=${encodeURIComponent(sitekey)}&pageurl=${encodeURIComponent(pageUrl)}&json=1`);
+  const submitted = await submitRes.json();
+  if (submitted.status !== 1) throw new Error(`2captcha submit: ${submitted.request}`);
+  const captchaId = submitted.request;
+  for (let i = 0; i < 36; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    const pollRes = await fetch(`https://2captcha.com/res.php?key=${apiKey}&action=get&id=${captchaId}&json=1`);
+    const poll = await pollRes.json();
+    if (poll.status === 1) return poll.request;
+    if (poll.request !== 'CAPCHA_NOT_READY') throw new Error(`2captcha: ${poll.request}`);
+  }
+  throw new Error('2captcha timeout');
+}
+
+async function injectCaptchaToken(page, type, token) {
+  await page.evaluate((t, tok) => {
+    if (t === 'hcaptcha') {
+      for (const sel of ['[name="h-captcha-response"]','textarea[id*=hcaptcha]','textarea[name*=hcaptcha]']) {
+        const el = document.querySelector(sel);
+        if (el) { el.value = tok; el.dispatchEvent(new Event('change',{bubbles:true})); }
+      }
+      try {
+        const widget = document.querySelector('.h-captcha');
+        const cb = widget?.getAttribute('data-callback');
+        if (cb && window[cb]) window[cb](tok);
+      } catch {}
+    } else {
+      const resp = document.querySelector('#g-recaptcha-response');
+      if (resp) { resp.style.display = 'block'; resp.value = tok; resp.dispatchEvent(new Event('change',{bubbles:true})); }
+      try {
+        const clients = window.___grecaptcha_cfg?.clients || {};
+        for (const k of Object.keys(clients)) {
+          const c = clients[k];
+          for (const ck of Object.keys(c)) {
+            if (c[ck]?.callback) { c[ck].callback(tok); return; }
+          }
+        }
+      } catch {}
+      try {
+        const el = document.querySelector('.g-recaptcha[data-callback]');
+        if (el) { const fn = el.getAttribute('data-callback'); if (fn && window[fn]) window[fn](tok); }
+      } catch {}
+    }
+  }, type, token);
+}
+
+async function trySolveCaptcha(page) {
+  const pageUrl = typeof page.url === 'function' ? page.url() : '';
+  const info = await detectCaptchaInfo(page);
+  if (!info || !info.sitekey) { console.error('[captcha] could not detect sitekey'); return false; }
+  console.error(`[captcha] detected ${info.type} sitekey=${info.sitekey.slice(0,12)}… solving via CapSolver`);
+  let token;
+  try {
+    token = await solveWithCapsolver(info.type, info.sitekey, pageUrl);
+  } catch (capErr) {
+    console.error(`[captcha] CapSolver failed (${capErr.message}), trying 2captcha`);
+    try {
+      token = await solveWith2captcha(info.type, info.sitekey, pageUrl);
+    } catch (twoErr) {
+      console.error(`[captcha] 2captcha also failed: ${twoErr.message}`);
+      return false;
+    }
+  }
+  if (!token) return false;
+  console.error(`[captcha] solved, injecting token`);
+  await injectCaptchaToken(page, info.type, token);
+  return true;
+}
+
 async function browserApply({job,payload,opts}) {
   const puppeteer = await optionalPuppeteer(opts);
   if (!puppeteer) return {status:'needs-human-review', reason:'puppeteer-not-installed'};
@@ -652,8 +917,8 @@ async function browserApply({job,payload,opts}) {
     await ensureNonEmptyPage(page);
     await debugStep(page, 'after-goto');
     await dismissCookieBanners(page);
-    if (await clickInitialApplyLink(page)) await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||30000}).catch(()=>page.waitForTimeout?.(2000));
-    if (await clickInitialApplyLink(page)) await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||30000}).catch(()=>page.waitForTimeout?.(2000));
+    if (await clickInitialApplyLink(page, payload.ats)) await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||30000}).catch(()=>page.waitForTimeout?.(2000));
+    if (await clickInitialApplyLink(page, payload.ats)) await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||30000}).catch(()=>page.waitForTimeout?.(2000));
     const p = payload.profile;
     await fillFirst(page, ['input[name*=first i]','input[id*=first i]','input[placeholder*=First i]'], p.firstName);
     await fillFirst(page, ['input[name*=last i]','input[id*=last i]','input[placeholder*=Last i]'], p.lastName);
@@ -671,22 +936,30 @@ async function browserApply({job,payload,opts}) {
     await selectOrFillWorkAuth(page, p.workAuth, p.requiresSponsorship);
     await fillKnownCustomQuestions(page, payload);
     await fillPlatformSpecificFields(page, payload);
+    await fillAdapterSpecificFields(page, payload);
     await fillRemainingRequiredFields(page, payload);
     await uploadDocuments(page, {resumePath: payload.resumePath, coverPdfPath: payload.coverPdfPath});
     await page.waitForTimeout?.(8000);
     await debugStep(page, 'after-upload');
     await fillProfileFieldsByLabel(page, payload);
+    await fillAdapterSpecificFields(page, payload);
+    if (payload.ats === 'breezy') await fillFirst(page, ['textarea[name="cSummary"]'], payload.coverLetter || 'Please see my attached resume and cover letter.');
     await fillFirst(page, ['textarea[name*=cover i]','textarea[id*=cover i]','textarea[placeholder*=cover i]','textarea'], payload.coverLetter);
     let blockers = await findBlockers(page);
     if (blockers.includes('captcha')) {
-      return {status:'needs-human-review', reason:'captcha'};
+      const solved = await trySolveCaptcha(page);
+      if (solved) {
+        await page.waitForTimeout?.(3000);
+        blockers = await findBlockers(page);
+      }
+      if (blockers.includes('captcha')) return {status:'needs-human-review', reason:'captcha-unsolved'};
     }
     if (blockers.length) return {status:'needs-human-review', reason:blockers.join(';')};
     if (opts.submit !== true) return {status:'prepared', reason:'submit-not-requested'};
     let beforeUrl = typeof page.url === 'function' ? page.url() : payload.url;
     let clickedAny = false;
     for (let i = 0; i < 5; i++) {
-      const clicked = await clickFinalSubmit(page);
+      const clicked = await clickFinalSubmit(page, payload.ats);
       if (clicked) {
         clickedAny = true;
         await page.waitForNavigation?.({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||15000}).catch(()=>page.waitForTimeout?.(8000));
@@ -694,18 +967,32 @@ async function browserApply({job,payload,opts}) {
       } else {
         const progressed = await clickProgressButton(page);
         if (!progressed) break;
-        await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||15000}).catch(()=>page.waitForTimeout?.(1500));
+        await page.waitForNavigation?.({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||15000}).catch(()=>page.waitForTimeout?.(1500));
       }
       await fillProfileFieldsByLabel(page, payload);
       await selectOrFillWorkAuth(page, p.workAuth, p.requiresSponsorship);
       await fillKnownCustomQuestions(page, payload);
       await fillPlatformSpecificFields(page, payload);
+      await fillAdapterSpecificFields(page, payload);
       await fillRemainingRequiredFields(page, payload);
       await uploadDocuments(page, {resumePath: payload.resumePath, coverPdfPath: payload.coverPdfPath});
       await page.waitForTimeout?.(4000);
       await debugStep(page, 'after-submit-loop-refill');
       await fillProfileFieldsByLabel(page, payload);
       blockers = await findBlockers(page);
+      if (blockers.some(b => /blocker-check-failed:.*detached Frame/i.test(b))) {
+        await page.waitForTimeout?.(5000);
+        if (await verifySubmission(page, beforeUrl)) return {status:'submitted', reason:'submission-verified'};
+        continue;
+      }
+      if (blockers.includes('captcha')) {
+        const solved = await trySolveCaptcha(page);
+        if (solved) {
+          await page.waitForTimeout?.(3000);
+          blockers = await findBlockers(page);
+        }
+        if (blockers.includes('captcha')) return {status:'needs-human-review', reason:'captcha-unsolved'};
+      }
       if (blockers.length) return {status:'needs-human-review', reason:blockers.join(';')};
       const currentUrl = typeof page.url === 'function' ? page.url() : beforeUrl;
       if (currentUrl !== beforeUrl) beforeUrl = currentUrl;
@@ -744,4 +1031,4 @@ async function autoApplyExternal({job = {}, dryRun = true, submit = false, store
   return {...base, ...result};
 }
 
-module.exports = { RESUME4_PATH, COVER4_PATH, detectAts, buildApplicationPayload, canAutoSubmit, extractAtsApplyUrlFromHtml, resolveAggregatorApplyUrl, autoApplyExternal, browserApply, findBlockers };
+module.exports = { RESUME4_PATH, COVER4_PATH, ATS_ADAPTERS, getAtsAdapter, detectAts, buildApplicationPayload, canAutoSubmit, extractAtsApplyUrlFromHtml, resolveAggregatorApplyUrl, autoApplyExternal, browserApply, findBlockers, fillAdapterSpecificFields, clickInitialApplyLink, clickFinalSubmit };

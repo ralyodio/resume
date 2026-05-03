@@ -12,11 +12,45 @@ const {
   autoApplyExternal,
   browserApply,
   findBlockers,
+  clickInitialApplyLink,
+  clickFinalSubmit,
   extractAtsApplyUrlFromHtml,
   RESUME4_PATH,
-  COVER4_PATH
+  COVER4_PATH,
+  ATS_ADAPTERS,
+  getAtsAdapter,
+  fillAdapterSpecificFields
 }=require('../src/apply/ats-auto-apply.cjs');
 const { openExternalApplication } = require('../src/apply/open-external.cjs');
+
+test('adapter-specific filler handles Workable QA radios and compound details textarea', async () => {
+  const yes = { type:'radio', name:'QA_1', value:'true', checked:false, disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], click(){ this.checked=true; }, getAttribute:()=>'', closest:()=>({innerText:'Production ML Engineering YES'}) };
+  const no = { type:'radio', name:'QA_1', value:'false', checked:false, disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], click(){ this.checked=true; }, getAttribute:()=>'', closest:()=>({innerText:'Production ML Engineering NO'}) };
+  const details = { tagName:'TEXTAREA', type:'textarea', name:'QA_11542988', id:'QA_11542988', value:'', disabled:false, readOnly:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', closest:()=>({innerText:'LinkedIn URL Current Location Expected salary work authorisation available to start'}), dispatchEvent:()=>{} };
+  const page = { evaluate: async (fn, a) => {
+    global.HTMLTextAreaElement = { prototype: {} };
+    global.HTMLInputElement = { prototype: {} };
+    global.Event = class { constructor(){} };
+    global.document = { querySelectorAll: (selector) => selector === 'input[type=radio]' ? [yes,no] : selector === 'textarea,input' ? [details] : [] };
+    try { return fn(a); } finally { delete global.document; }
+  }};
+  await fillAdapterSpecificFields(page, { ats:'workable', profile:{ linkedin:'https://linkedin.example/in/a', location:'Seattle, WA, USA', workAuth:'US Citizen' } });
+  assert.equal(yes.checked, true);
+  assert.match(details.value, /350,000/);
+  assert.match(details.value, /Seattle/);
+});
+
+test('ATS adapter registry defines per-site browser behavior', () => {
+  for (const ats of ['greenhouse','lever','applytojob','breezy','workable','ashby','icims']) {
+    assert.equal(getAtsAdapter(ats).id, ats);
+  }
+  assert.equal(typeof ATS_ADAPTERS.applytojob.allowFinalSubmit, 'function');
+  assert.ok(ATS_ADAPTERS.greenhouse.ignoreRequired({ getAttribute: (name) => name === 'aria-hidden' ? 'true' : '', tabIndex: -1, className: 'requiredInput' }));
+  assert.match(ATS_ADAPTERS.lever.normalizeUrl('https://jobs.lever.co/acme/abc'), /\/apply$/);
+  assert.equal(ATS_ADAPTERS.breezy.normalizeUrl('https://acme.breezy.hr/p/abc-role'), 'https://acme.breezy.hr/p/abc/apply');
+  assert.equal(ATS_ADAPTERS.breezy.normalizeUrl('https://acme.breezy.hr/p/abc123-job-title'), 'https://acme.breezy.hr/p/abc123/apply');
+  assert.match(ATS_ADAPTERS.workable.normalizeUrl('https://apply.workable.com/acme/j/ABC'), /\/apply\/$/);
+});
 
 test('detectAts identifies supported ATS and email URLs',()=>{
   assert.equal(detectAts('https://boards.greenhouse.io/acme/jobs/123'), 'greenhouse');
@@ -56,6 +90,12 @@ test('buildApplicationPayload uses resume4/cover4 PDFs and does not hallucinate 
     if (oldEmail === undefined) delete process.env.HERMES_APPLICANT_EMAIL; else process.env.HERMES_APPLICANT_EMAIL=oldEmail;
     if (oldPhone === undefined) delete process.env.HERMES_APPLICANT_PHONE; else process.env.HERMES_APPLICANT_PHONE=oldPhone;
   }
+});
+
+test('buildApplicationPayload normalizes Lever job pages to the direct /apply form URL',()=>{
+  const payload=buildApplicationPayload({applicationMode:'external-ats',applyUrl:'https://jobs.lever.co/smart-working-solutions/c9fc3a3a-ca9d-4bdd-89e8-6d4eab4a19f6'});
+  assert.equal(payload.ats, 'lever');
+  assert.equal(payload.url, 'https://jobs.lever.co/smart-working-solutions/c9fc3a3a-ca9d-4bdd-89e8-6d4eab4a19f6/apply');
 });
 
 test('canAutoSubmit is true only for known external ATS/email flows',()=>{
@@ -123,7 +163,7 @@ function fakePuppeteer({blockers=[], clicked=true, verified=true, anchorOnly=fal
     evaluate: async(fn, arg)=>{
       const src = String(fn);
       if (src.includes('blockers = []')) return blockers;
-      if (src.includes("button, input[type=submit]")) { state.queries.push('safe-submit-selector'); return anchorOnly ? false : clicked; }
+      if (src.includes("button, input[type=submit]") || src.includes('adapterSpec.selectors')) { state.queries.push('safe-submit-selector'); return anchorOnly ? false : clicked; }
       if (src.includes('application submitted')) return verified;
       return null;
     }
@@ -155,17 +195,24 @@ test('browserApply blocks visible captcha/login/unknown-required before submit',
 });
 
 test('findBlockers ignores invisible recaptcha token fields unless there is a visible challenge',async()=>{
-  const page={evaluate:async(fn)=>fn()};
+  const page={evaluate:async(fn,arg)=>fn(arg)};
   const oldDocument=global.document;
   try {
     global.document={
       body:{innerText:'Name Email Resume Submit Application'},
       querySelector:(selector)=>{
         if(selector.includes('input[type=password]')) return null;
-        if(selector.includes('[class*=captcha]')) return null;
+        if(selector.includes('[class*=captcha]')) return [
+          {tagName:'TEXTAREA',name:'g-recaptcha-response',id:'g-recaptcha-response-100000',className:'',offsetWidth:300,offsetHeight:60,getClientRects:()=>[{}],getAttribute:(k)=>null},
+          {tagName:'IFRAME',name:'a-123',id:'',className:'',src:'https://www.recaptcha.net/recaptcha/api2/anchor?size=invisible',offsetWidth:256,offsetHeight:60,getClientRects:()=>[{}],getAttribute:(k)=>k==='title'?'reCAPTCHA':k==='src'?'https://www.recaptcha.net/recaptcha/api2/anchor?size=invisible':null}
+        ];
         return null;
       },
       querySelectorAll:(selector)=>{
+        if(selector.includes('[class*=captcha]')) return [
+          {tagName:'TEXTAREA',name:'g-recaptcha-response',id:'g-recaptcha-response-100000',className:'',offsetWidth:300,offsetHeight:60,getClientRects:()=>[{}],getAttribute:(k)=>null},
+          {tagName:'IFRAME',name:'a-123',id:'',className:'',src:'https://www.recaptcha.net/recaptcha/api2/anchor?size=invisible',offsetWidth:256,offsetHeight:60,getClientRects:()=>[{}],getAttribute:(k)=>k==='title'?'reCAPTCHA':k==='src'?'https://www.recaptcha.net/recaptcha/api2/anchor?size=invisible':null}
+        ];
         if(selector==='input, textarea, select') return [
           {required:false,getAttribute:(k)=>k==='aria-required'?null:null,type:'textarea',tagName:'TEXTAREA',name:'g-recaptcha-response',id:'g-recaptcha-response-100000',placeholder:'',value:''}
         ];
@@ -173,6 +220,91 @@ test('findBlockers ignores invisible recaptcha token fields unless there is a vi
       }
     };
     assert.deepEqual(await findBlockers(page), []);
+  } finally {
+    global.document=oldDocument;
+  }
+});
+
+test('clickInitialApplyLink refuses social resume import buttons even when href contains apply return URL', async()=>{
+  let clicked=false;
+  const page={evaluate:async(fn,arg)=>{
+    global.location={pathname:'/p/abc/apply'};
+    global.document={querySelectorAll:()=>[{offsetWidth:1,offsetHeight:1,getClientRects:()=>[1],innerText:'Apply Using LinkedIn',href:'https://linkedin.com/oauth?redirect=/apply',click(){clicked=true;},getAttribute:()=>''}]};
+    try { return fn(arg); } finally { delete global.document; delete global.location; }
+  }};
+  const res=await clickInitialApplyLink(page,'breezy');
+  assert.equal(res,false);
+  assert.equal(clicked,false);
+});
+
+test('clickInitialApplyLink clicks Greenhouse aria-label Apply even when non-application fields exist', async()=>{
+  let clicked=false;
+  const page={evaluate:async(fn,arg)=>fn(arg)};
+  const oldDocument=global.document;
+  try {
+    global.document={
+      querySelector:(selector)=> selector === 'input:not([type=hidden]), textarea, select' ? {name:'job-alert-email'} : null,
+      querySelectorAll:(selector)=> selector === 'a, button' ? [{
+        innerText:'',
+        value:'',
+        href:'',
+        offsetWidth:80,
+        offsetHeight:24,
+        getClientRects:()=>[{}],
+        getAttribute:(name)=> name === 'aria-label' ? 'Apply' : null,
+        click:()=>{ clicked=true; }
+      }] : []
+    };
+    assert.equal(await clickInitialApplyLink(page, 'greenhouse'), true);
+    assert.equal(clicked, true);
+  } finally {
+    global.document=oldDocument;
+  }
+});
+
+test('findBlockers ignores hidden required helper inputs', async () => {
+  const page = {
+    evaluate: async (fn) => {
+      global.document = {
+        body: { innerText: '' },
+        querySelector: (selector) => selector === 'input[type=password]' ? null : null,
+        querySelectorAll: (selector) => {
+          if (selector.includes('captcha')) return [];
+          if (selector === 'input, textarea, select') return [
+            { required: true, getAttribute: (name) => name === 'type' ? 'text' : '', name: '', id: '', placeholder: '', value: '', disabled: false, offsetWidth: 0, offsetHeight: 0, getClientRects: () => [] },
+            { required: true, getAttribute: (name) => name === 'type' ? 'text' : '', name: 'email', id: 'email', placeholder: '', value: 'anthony@example.com', disabled: false, offsetWidth: 20, offsetHeight: 20, getClientRects: () => [1] },
+          ];
+          return [];
+        }
+      };
+      try { return fn(); } finally { delete global.document; }
+    }
+  };
+  assert.deepEqual(await findBlockers(page), []);
+});
+
+test('clickFinalSubmit clicks ApplyToJob/JazzHR submit anchor by stable id', async () => {
+  let clicked=false;
+  const page={evaluate:async(fn,arg)=>fn(arg)};
+  const oldDocument=global.document;
+  try {
+    global.document={
+      querySelectorAll:(selector)=> selector.includes('a[href="#"]') || selector.includes('button') ? [{
+        tagName:'A',
+        innerText:'SUBMIT APPLICATION',
+        value:'',
+        href:'https://cyclotroninc.applytojob.com/apply/muxjx5MbpZ/Sr-AI-Architect#',
+        id:'resumator-submit-resume',
+        className:'btn',
+        offsetWidth:120,
+        offsetHeight:32,
+        getClientRects:()=>[{}],
+        getAttribute:(name)=>null,
+        click:()=>{ clicked=true; }
+      }] : []
+    };
+    assert.equal(await clickFinalSubmit(page, 'applytojob'), true);
+    assert.equal(clicked, true);
   } finally {
     global.document=oldDocument;
   }
