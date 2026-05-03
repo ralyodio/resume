@@ -11,6 +11,7 @@ const {
   canAutoSubmit,
   autoApplyExternal,
   browserApply,
+  findBlockers,
   extractAtsApplyUrlFromHtml,
   RESUME4_PATH,
   COVER4_PATH
@@ -146,11 +147,35 @@ test('browserApply returns needs-human-review when click is not verified',async(
   assert.match(result.reason,/submission-unverified/);
 });
 
-test('browserApply blocks captcha/login/unknown-required before submit',async()=>{
+test('browserApply blocks visible captcha/login/unknown-required before submit',async()=>{
   const {puppeteer}=fakePuppeteer({blockers:['captcha','unknown-required:visa sponsorship']});
   const result=await browserApply({job:{id:'b3'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
   assert.equal(result.status,'needs-human-review');
   assert.match(result.reason,/captcha/);
+});
+
+test('findBlockers ignores invisible recaptcha token fields unless there is a visible challenge',async()=>{
+  const page={evaluate:async(fn)=>fn()};
+  const oldDocument=global.document;
+  try {
+    global.document={
+      body:{innerText:'Name Email Resume Submit Application'},
+      querySelector:(selector)=>{
+        if(selector.includes('input[type=password]')) return null;
+        if(selector.includes('[class*=captcha]')) return null;
+        return null;
+      },
+      querySelectorAll:(selector)=>{
+        if(selector==='input, textarea, select') return [
+          {required:false,getAttribute:(k)=>k==='aria-required'?null:null,type:'textarea',tagName:'TEXTAREA',name:'g-recaptcha-response',id:'g-recaptcha-response-100000',placeholder:'',value:''}
+        ];
+        return [];
+      }
+    };
+    assert.deepEqual(await findBlockers(page), []);
+  } finally {
+    global.document=oldDocument;
+  }
 });
 
 test('browserApply does not click anchors as final submit controls',async()=>{

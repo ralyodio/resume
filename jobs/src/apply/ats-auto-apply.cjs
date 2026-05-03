@@ -551,7 +551,10 @@ async function findBlockers(page) {
   return page.evaluate(() => {
     const text = document.body ? document.body.innerText.toLowerCase() : '';
     const blockers = [];
-    if (/captcha|recaptcha|hcaptcha/.test(text) || document.querySelector('[class*=captcha], [id*=captcha], iframe[src*=captcha], iframe[src*=recaptcha]')) blockers.push('captcha');
+    function visible(el){ return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects?.().length)); }
+    const captchaText = /(?:solve|complete|verify|verification|challenge|security).*?(?:captcha|recaptcha|hcaptcha)|(?:captcha|recaptcha|hcaptcha).*?(?:required|challenge|verification)/.test(text);
+    const captchaElements = Array.from(document.querySelectorAll('[class*=captcha], [id*=captcha], iframe[src*=captcha], iframe[src*=recaptcha], iframe[src*=hcaptcha]')).filter(visible);
+    if (captchaText || captchaElements.length) blockers.push('captcha');
     if (document.querySelector('input[type=password]')) blockers.push('login');
     const unknownRequired = [];
     const fields = Array.from(document.querySelectorAll('input, textarea, select')).filter(el => el.required || el.getAttribute('aria-required') === 'true');
@@ -741,4 +744,4 @@ async function autoApplyExternal({job = {}, dryRun = true, submit = false, store
   return {...base, ...result};
 }
 
-module.exports = { RESUME4_PATH, COVER4_PATH, detectAts, buildApplicationPayload, canAutoSubmit, extractAtsApplyUrlFromHtml, resolveAggregatorApplyUrl, autoApplyExternal, browserApply };
+module.exports = { RESUME4_PATH, COVER4_PATH, detectAts, buildApplicationPayload, canAutoSubmit, extractAtsApplyUrlFromHtml, resolveAggregatorApplyUrl, autoApplyExternal, browserApply, findBlockers };
