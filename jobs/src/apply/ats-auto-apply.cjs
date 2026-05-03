@@ -38,6 +38,51 @@ function normalizeApplicationUrl(url, ats) {
   if (ats === 'icims' && !/\/login$/i.test(path) && !u.searchParams.has('mode')) { u.searchParams.set('mode','apply'); return u.toString(); }
   return u.toString();
 }
+function decodeHtmlEntities(s) {
+  return String(s || '')
+    .replace(/&amp;/g,'&')
+    .replace(/&quot;/g,'"')
+    .replace(/&#39;|&apos;/g,"'")
+    .replace(/&lt;/g,'<')
+    .replace(/&gt;/g,'>');
+}
+function extractAtsApplyUrlFromHtml(html, baseUrl='') {
+  const text = String(html || '');
+  const hrefs = [];
+  for (const m of text.matchAll(/href\s*=\s*["']([^"']+)["']/gi)) hrefs.push(m[1]);
+  for (const m of text.matchAll(/https?:\\?\/\\?\/[^\s"'<>]+/gi)) hrefs.push(m[0].replace(/\\\//g,'/'));
+  for (const raw of hrefs) {
+    let url = decodeHtmlEntities(raw).trim();
+    if (!url || /2captcha|capsolver|recaptcha|hcaptcha|captcha/i.test(url)) continue;
+    try { url = new URL(url, baseUrl || undefined).toString(); } catch { continue; }
+    const ats = detectAts(url);
+    if (SUPPORTED_ATS.has(ats) && ats !== 'unknown') return normalizeApplicationUrl(url, ats);
+  }
+  return '';
+}
+const AGGREGATOR_SOURCES = new Set(['remotive','arbeitnow','jobicy','themuse','web3-career','himalayas','cryptocurrencyjobs','laborx','builtin','weworkremotely']);
+async function fetchPageHtmlDefault(url, timeoutMs=12000) {
+  if (typeof fetch !== 'function') return '';
+  const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ac ? setTimeout(() => ac.abort(), timeoutMs) : null;
+  try {
+    const res = await fetch(url, { headers:{'user-agent':process.env.HERMES_ATS_USER_AGENT || 'Mozilla/5.0 Hermes Jobs ATS Resolver'}, signal:ac?.signal });
+    if (!res.ok) return '';
+    return await res.text();
+  } catch { return ''; }
+  finally { if (timer) clearTimeout(timer); }
+}
+async function resolveAggregatorApplyUrl(job={}, opts={}) {
+  const original = job.applyUrl || job.sourceUrl || '';
+  if (!original || detectAts(original) !== 'unknown') return job;
+  const shouldResolve = typeof opts.fetchPageHtml === 'function' || AGGREGATOR_SOURCES.has(job.source);
+  if (!shouldResolve) return job;
+  const fetcher = opts.fetchPageHtml || ((url) => fetchPageHtmlDefault(url, opts.resolveTimeoutMs || opts.timeoutMs || 12000));
+  const html = await fetcher(original, job).catch(()=>'');
+  const resolved = extractAtsApplyUrlFromHtml(html, original);
+  if (!resolved) return job;
+  return { ...job, applyUrl: resolved, applicationMode: 'external-ats', metadata:{...(job.metadata||{}), resolvedApplyUrlFrom: original} };
+}
 function envFirst(keys) { for (const k of keys) if (process.env[k]) return process.env[k]; return ''; }
 function defaultCoverLetterText() {
   const candidates = [
@@ -670,6 +715,7 @@ async function browserApply({job,payload,opts}) {
 }
 
 async function autoApplyExternal({job = {}, dryRun = true, submit = false, storeDir, ...opts} = {}) {
+  job = await resolveAggregatorApplyUrl(job, opts);
   const payload = buildApplicationPayload(job, opts);
   const base = { url: payload.url, ats: payload.ats, resumePath: payload.resumePath, coverPdfPath: payload.coverPdfPath };
   if (!payload.url) return {...base, status:'unsupported', reason:'missing-url'};
@@ -695,4 +741,4 @@ async function autoApplyExternal({job = {}, dryRun = true, submit = false, store
   return {...base, ...result};
 }
 
-module.exports = { RESUME4_PATH, COVER4_PATH, detectAts, buildApplicationPayload, canAutoSubmit, autoApplyExternal, browserApply };
+module.exports = { RESUME4_PATH, COVER4_PATH, detectAts, buildApplicationPayload, canAutoSubmit, extractAtsApplyUrlFromHtml, resolveAggregatorApplyUrl, autoApplyExternal, browserApply };

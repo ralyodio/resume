@@ -11,6 +11,7 @@ const {
   canAutoSubmit,
   autoApplyExternal,
   browserApply,
+  extractAtsApplyUrlFromHtml,
   RESUME4_PATH,
   COVER4_PATH
 }=require('../src/apply/ats-auto-apply.cjs');
@@ -78,6 +79,26 @@ test('openExternalApplication run-live with unsupported unknown URL is never sub
   const result=await openExternalApplication({job:{id:'u1',applicationMode:'external-ats',applyUrl:'https://example.com/apply'},dryRun:false,submit:true,storeDir:dir});
   assert.match(result.status, /unsupported|needs-human-review/);
   assert.notEqual(result.status, 'submitted');
+});
+
+test('extracts real ATS apply links from aggregator HTML before applying',async()=>{
+  const html='<html><body><a href="https://boards.greenhouse.io/acme/jobs/123?gh_src=agg">Apply now</a><a href="https://linkedin.com/share">Share</a></body></html>';
+  assert.equal(extractAtsApplyUrlFromHtml(html, 'https://remotive.com/remote-jobs/dev/role'), 'https://boards.greenhouse.io/acme/jobs/123?gh_src=agg');
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ats-resolve-'));
+  const result=await autoApplyExternal({
+    job:{id:'agg1',applicationMode:'external-ats',applyUrl:'https://remotive.com/remote-jobs/dev/role',title:'Engineer',company:'Acme'},
+    dryRun:true,
+    storeDir:dir,
+    fetchPageHtml:async()=>html
+  });
+  assert.equal(result.status,'prepared');
+  assert.equal(result.ats,'greenhouse');
+  assert.equal(result.url,'https://boards.greenhouse.io/acme/jobs/123?gh_src=agg');
+});
+
+test('does not resolve CAPTCHA solver links as apply targets',()=>{
+  const html='<a href="https://2captcha.com/demo">captcha helper</a><a href="https://example.com/apply">Apply</a>';
+  assert.equal(extractAtsApplyUrlFromHtml(html, 'https://example.com/jobs/1'), '');
 });
 
 test('email apply writes draft in dry-run and does not send without SMTP credentials',async()=>{
