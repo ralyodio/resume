@@ -71,10 +71,19 @@ const ATS_ADAPTERS = {
       if (!/\/login$/i.test(p) && !u.searchParams.has('mode')) u.searchParams.set('mode','apply');
       return u.toString();
     },
+    initialApplyTexts: [/^apply$/i, /^apply for this job$/i, /^apply now$/i],
+    finalSubmitSelectors: ['button[type=submit]', 'input[type=submit]', 'button', 'input[type=button]'],
+    finalSubmitTexts: [/^submit profile$/i, /^submit application$/i, /^submit$/i],
   },
-  jobvite: { id: 'jobvite', name: 'Jobvite' },
-  workday: { id: 'workday', name: 'Workday' },
-  smartrecruiters: { id: 'smartrecruiters', name: 'SmartRecruiters' },
+  jobvite: { id: 'jobvite', name: 'Jobvite', finalSubmitTexts: [/^submit application$/i, /^submit$/i] },
+  workday: {
+    id: 'workday',
+    name: 'Workday',
+    initialApplyTexts: [/^apply$/i, /^apply manually$/i, /^use my last application$/i, /^bewerben$/i, /^jetzt bewerben$/i],
+    finalSubmitSelectors: ['button[type=submit]', 'input[type=submit]', 'button'],
+    finalSubmitTexts: [/^submit$/i, /^submit application$/i, /^send application$/i],
+  },
+  smartrecruiters: { id: 'smartrecruiters', name: 'SmartRecruiters', finalSubmitTexts: [/^submit application$/i, /^submit$/i] },
   bamboohr: { id: 'bamboohr', name: 'BambooHR' },
   recruiterbox: { id: 'recruiterbox', name: 'Recruiterbox' },
   email: { id: 'email', name: 'Email' },

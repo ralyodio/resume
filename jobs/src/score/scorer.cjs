@@ -18,10 +18,11 @@ function scoreJob(job, config={}){
   if (daysOld(job.postedAt) <= 2) add(10,'posted within 48 hours');
   if (has(text,/founder|hiring manager|direct apply|email the founder/)) add(10,'direct hiring path');
   if (['native-profile','easy-apply'].includes(job.applicationMode)) add(10,'profile/easy apply flow');
+  if (job.source === 'valueserp-ats' && job.applicationMode === 'external-ats' && technicalTitle) add(20,'direct ATS technical form');
   if (has(text,/open[- ]source|developer tools?|devtools|infrastructure|platform|distributed/)) add(5,'devtools/infra focus');
   if (has(text,/hybrid only|hybrid|onsite|on-site|in office/)) risk(-25,'hybrid/onsite signal');
   if (has(text,/staffing|recruiter|recruitment agency|talent solutions|contract-to-hire/)) risk(-30,'recruiter/staffing signal');
-  if ((job.descriptionText||'').length < 120) risk(-30,'vague description');
+  if ((job.descriptionText||'').length < 120 && !(job.source === 'valueserp-ats' && job.applicationMode === 'external-ats' && technicalTitle)) risk(-30,'vague description');
   if (has(text,/unpaid|volunteer/)) risk(-40,'unpaid role');
   if (has(text,/commission[- ]only|100% commission/)) risk(-40,'commission-only role');
   if (has(text,/clearance required|security clearance|top secret|ts\/sci/)) risk(-50,'clearance required');

@@ -13,13 +13,18 @@ const {
   browserApply,
   findBlockers,
   clickInitialApplyLink,
+  clickProgressButton,
   clickFinalSubmit,
   extractAtsApplyUrlFromHtml,
   RESUME4_PATH,
   COVER4_PATH,
   ATS_ADAPTERS,
   getAtsAdapter,
-  fillAdapterSpecificFields
+  fillAdapterSpecificFields,
+  choosePromptDropdown,
+  classifyScreeningAnswer,
+  companyFromJobPageData,
+  refreshPayloadCoverLetterFromVerifiedEmployer
 }=require('../src/apply/ats-auto-apply.cjs');
 const { openExternalApplication } = require('../src/apply/open-external.cjs');
 
@@ -38,6 +43,190 @@ test('adapter-specific filler handles Workable QA radios and compound details te
   assert.equal(yes.checked, true);
   assert.match(details.value, /350,000/);
   assert.match(details.value, /Seattle/);
+});
+
+test('adapter-specific filler clicks Workable div role radio wrappers with hidden inputs', async () => {
+  const question = { innerText:'Do you have 5+ years of experience managing software implementation projects for customers?' };
+  const yesLabel = { innerText:'YES' };
+  const noLabel = { innerText:'NO' };
+  const fieldset = { innerText:'Do you have 5+ years of experience managing software implementation projects for customers? YES NO' };
+  const yesInput = { value:'true', checked:false, dispatchEvent:()=>{} };
+  const noInput = { value:'false', checked:false, dispatchEvent:()=>{} };
+  function roleRadio(labelEl, input) {
+    return {
+      offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], parentElement:fieldset,
+      attrs:{'aria-checked':'false','aria-labelledby':`q ${labelEl === yesLabel ? 'yes' : 'no'}`},
+      getAttribute(name){ return this.attrs[name] || ''; },
+      setAttribute(name,value){ this.attrs[name]=value; },
+      closest(sel){ return sel.includes('radiogroup') ? fieldset : { innerText:`${question.innerText} ${labelEl.innerText}` }; },
+      querySelector(){ return input; },
+      click(){ input.checked=true; this.attrs['aria-checked']='true'; }
+    };
+  }
+  const yes = roleRadio(yesLabel, yesInput);
+  const no = roleRadio(noLabel, noInput);
+  const page = { evaluate: async (fn, a) => {
+    global.HTMLTextAreaElement = { prototype: {} };
+    global.HTMLInputElement = { prototype: {} };
+    global.Event = class { constructor(){} };
+    global.document = {
+      getElementById: (id) => id === 'q' ? question : id === 'yes' ? yesLabel : id === 'no' ? noLabel : null,
+      querySelector: () => null,
+      querySelectorAll: (selector) => selector === '[role="radio"]' ? [yes,no] : []
+    };
+    try { return fn(a); } finally { delete global.document; }
+  }};
+  await fillAdapterSpecificFields(page, { ats:'workable', profile:{} });
+  assert.equal(yesInput.checked, true);
+  assert.equal(noInput.checked, false);
+});
+
+test('generic screening classifier answers by question meaning, not exact hardcoded wording', () => {
+  assert.equal(classifyScreeningAnswer('Do you have 5+ years of experience managing software implementation projects for customers?'), 'yes');
+  assert.equal(classifyScreeningAnswer('Have you successfully delivered healthcare IT solutions in hospital settings?'), 'no');
+  assert.equal(classifyScreeningAnswer('Can you deliver clear written and verbal communication when translating between technical and clinical audiences?'), 'yes');
+  assert.equal(classifyScreeningAnswer('Do you have experience with EHR systems (MEDITECH, Oracle Health/Cerner, Epic) or healthcare data standards (HL7, FHIR)?'), 'no');
+  assert.equal(classifyScreeningAnswer('Do you have PMP certification or equivalent project management credentials?'), 'no');
+  assert.equal(classifyScreeningAnswer('Do you have experience at a healthcare technology vendor?'), 'yes');
+  assert.equal(classifyScreeningAnswer('Are you currently authorized to work in the United States without visa sponsorship?'), 'yes');
+  assert.equal(classifyScreeningAnswer('Will you now or in the future require sponsorship for employment visa status (e.g., H-1B or other work visa)?'), 'no');
+  assert.equal(classifyScreeningAnswer('Have you been previously employed with Weedmaps?'), 'no');
+  assert.equal(classifyScreeningAnswer('In this question description we have provided a link to our California Consumer Privacy Act (CCPA) disclosure. Please acknowledge that you have been provided with this disclosure'), 'yes');
+  assert.equal(classifyScreeningAnswer('If yes, how are you authorized?', ['US Citizenship','US Permanent Resident','Visa','None of the above apply']), 'US Citizenship');
+  assert.equal(classifyScreeningAnswer('What is your favorite database?'), null);
+});
+
+test('adapter-specific filler handles Breezy required radios and proficiency selects', async () => {
+  const citizenQuestion = { innerText:'Are you a citizen of the United States (or have an active Green Card) and living in one the 50 states?* Yes No', offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] };
+  const salaryQuestion = { innerText:'The starting salary range for this position is $145,000-$160,000. Is this an acceptable starting salary range and benefits package for you?* Yes No', offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] };
+  const citizenYes = { type:'radio', name:'section_question_0', value:'Yes', checked:false, disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; }, closest:()=>citizenQuestion };
+  const citizenNo = { type:'radio', name:'section_question_0', value:'No', checked:false, disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; }, closest:()=>citizenQuestion };
+  const salaryYes = { type:'radio', name:'section_question_5', value:'Yes', checked:false, disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; }, closest:()=>salaryQuestion };
+  const salaryNo = { type:'radio', name:'section_question_5', value:'No', checked:false, disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; }, closest:()=>salaryQuestion };
+  function mkSelect(question) {
+    return {
+      tagName:'SELECT', name:'section_question_select', value:'? undefined:undefined ?', disabled:false,
+      offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', dispatchEvent:()=>{},
+      options:[
+        { value:'? undefined:undefined ?', text:'' },
+        { value:'None', text:'None' },
+        { value:'Novice', text:'Novice' },
+        { value:'Advanced Beginner', text:'Advanced Beginner' },
+        { value:'Competent', text:'Competent' },
+        { value:'Proficient', text:'Proficient' },
+        { value:'Expert', text:'Expert' }
+      ],
+      closest:(selector)=> selector.includes('.dropdown') || selector.includes('li.question') ? { innerText:question, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] } : null
+    };
+  }
+  const ts = mkSelect('What is your proficiency with Typescript?* None Novice Advanced Beginner Competent Proficient Expert');
+  const go = mkSelect('What is your proficiency with Go language?* None Novice Advanced Beginner Competent Proficient Expert');
+  const page = { evaluate: async (fn, a) => {
+    global.HTMLTextAreaElement = { prototype: {} };
+    global.HTMLInputElement = { prototype: {} };
+    global.Event = class { constructor(){} };
+    global.CSS = { escape: s => s };
+    global.document = {
+      getElementById: () => null,
+      querySelector: () => null,
+      querySelectorAll: (selector) => {
+        if (selector === 'input[type=radio]') return [citizenYes, citizenNo, salaryYes, salaryNo];
+        if (selector === 'select') return [ts, go];
+        return [];
+      }
+    };
+    try { return fn(a); } finally { delete global.document; delete global.CSS; }
+  }};
+  await fillAdapterSpecificFields(page, { ats:'breezy', profile:{} });
+  assert.equal(citizenYes.checked, true);
+  assert.equal(salaryNo.checked, true);
+  assert.equal(ts.value, 'Expert');
+  assert.equal(go.value, 'None');
+});
+
+test('adapter-specific filler handles Greenhouse hidden radios and required acknowledgements', async () => {
+  const authYes = { type:'radio', name:'auth', value:'Yes', checked:false, disabled:false, offsetWidth:0, offsetHeight:0, getClientRects:()=>[], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; } };
+  const authNo = { type:'radio', name:'auth', value:'No', checked:false, disabled:false, offsetWidth:0, offsetHeight:0, getClientRects:()=>[], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; } };
+  const sponsorYes = { type:'radio', name:'sponsor', value:'Yes', checked:false, disabled:false, offsetWidth:0, offsetHeight:0, getClientRects:()=>[], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; } };
+  const sponsorNo = { type:'radio', name:'sponsor', value:'No', checked:false, disabled:false, offsetWidth:0, offsetHeight:0, getClientRects:()=>[], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; } };
+  const prevYes = { type:'radio', name:'prev', value:'Yes', checked:false, disabled:false, offsetWidth:0, offsetHeight:0, getClientRects:()=>[], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; } };
+  const prevNo = { type:'radio', name:'prev', value:'No', checked:false, disabled:false, offsetWidth:0, offsetHeight:0, getClientRects:()=>[], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; } };
+  const ack = { type:'checkbox', name:'ccpa', checked:false, disabled:false, readOnly:false, offsetWidth:0, offsetHeight:0, getClientRects:()=>[], getAttribute:(n)=> n === 'aria-required' ? 'true' : '', dispatchEvent:()=>{}, click(){ this.checked=true; } };
+  const phone = { tagName:'INPUT', type:'tel', id:'phone', value:'', disabled:false, readOnly:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:(n)=> n === 'aria-label' ? 'Phone' : '', dispatchEvent:()=>{} };
+  const groups = {
+    auth: { innerText:'Are you legally authorized to work in the United States? Yes No', offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] },
+    sponsor: { innerText:'Will you now or in the future require sponsorship for employment visa status? Yes No', offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] },
+    prev: { innerText:'Have you been previously employed with Weedmaps? Yes No', offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] },
+    ack: { innerText:'California Consumer Privacy Act CCPA disclosure acknowledge', offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] },
+    phone: { innerText:'Phone', offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] }
+  };
+  for (const r of [authYes, authNo]) r.closest = () => groups.auth;
+  for (const r of [sponsorYes, sponsorNo]) r.closest = () => groups.sponsor;
+  for (const r of [prevYes, prevNo]) r.closest = () => groups.prev;
+  ack.closest = () => groups.ack;
+  phone.closest = () => groups.phone;
+  const page = { evaluate: async (fn, a) => {
+    global.HTMLTextAreaElement = { prototype: {} };
+    global.HTMLInputElement = { prototype: {} };
+    global.Event = class { constructor(){} };
+    global.CSS = { escape: s => s };
+    global.document = {
+      getElementById: () => null,
+      querySelector: () => null,
+      querySelectorAll: (selector) => {
+        if (selector === 'input[type=radio]') return [authYes, authNo, sponsorYes, sponsorNo, prevYes, prevNo];
+        if (selector === '[role="radio"]') return [];
+        if (selector === 'input,textarea' || selector === 'input, textarea') return [phone];
+        if (selector === 'select') return [];
+        if (selector === 'input[type=checkbox]') return [ack];
+        return [];
+      }
+    };
+    try { return fn(a); } finally { delete global.document; delete global.CSS; }
+  }};
+  await fillAdapterSpecificFields(page, { ats:'greenhouse', profile:{ phone:'(555) 123-4567' } });
+  assert.equal(authYes.checked, true);
+  assert.equal(sponsorNo.checked, true);
+  assert.equal(prevNo.checked, true);
+  assert.equal(ack.checked, true);
+  assert.equal(phone.value, '5551234567');
+});
+
+test('Greenhouse prompt dropdown picks sibling select control from label-only question container', async () => {
+  let clickedControl = false;
+  let pickedNo = false;
+  const label = {
+    innerText:'Will you now or in the future require sponsorship for employment visa status?*', textContent:'Will you now or in the future require sponsorship for employment visa status?*', offsetWidth:10, offsetHeight:10,
+    getClientRects:()=>[1], getBoundingClientRect:()=>({top:100,left:20,width:300,height:20}), getAttribute:()=>'', querySelectorAll:()=>[], click:()=>{}
+  };
+  const control = {
+    innerText:'Select...', textContent:'Select...', className:'select__control remix-css-13cymwt-control', offsetWidth:10, offsetHeight:10,
+    getClientRects:()=>[1], getBoundingClientRect:()=>({top:128,left:20,width:260,height:36}), getAttribute:()=>'', querySelectorAll:()=>[], click(){ clickedControl = true; }
+  };
+  const field = {
+    innerText:`${label.innerText} Select...`, textContent:`${label.innerText} Select...`, offsetWidth:10, offsetHeight:10,
+    getClientRects:()=>[1], getBoundingClientRect:()=>({top:96,left:15,width:330,height:80}), getAttribute:()=>'', parentElement:null,
+    querySelectorAll:(selector)=> selector.includes('select__control') ? [control] : []
+  };
+  label.parentElement = field;
+  control.parentElement = field;
+  const yesOpt = { innerText:'Yes', textContent:'Yes', offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', click:()=>{} };
+  const noOpt = { innerText:'No', textContent:'No', offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', click(){ pickedNo = true; } };
+  const page = { evaluate: async (fn, arg) => {
+    global.document = {
+      querySelectorAll: (selector) => {
+        if (selector.includes('[role="option"]')) return [yesOpt, noOpt];
+        if (selector.includes('button') || selector.includes('select__control')) return [];
+        if (selector.includes('.field-wrapper')) return [label, field];
+        return [];
+      }
+    };
+    try { return fn(arg); } finally { delete global.document; }
+  }};
+  const ok = await choosePromptDropdown(page, /sponsor|sponsorship|visa/i, [/^no$/i]);
+  assert.equal(ok, true);
+  assert.equal(clickedControl, true);
+  assert.equal(pickedNo, true);
 });
 
 test('ATS adapter registry defines per-site browser behavior', () => {
@@ -96,6 +285,33 @@ test('buildApplicationPayload normalizes Lever job pages to the direct /apply fo
   const payload=buildApplicationPayload({applicationMode:'external-ats',applyUrl:'https://jobs.lever.co/smart-working-solutions/c9fc3a3a-ca9d-4bdd-89e8-6d4eab4a19f6'});
   assert.equal(payload.ats, 'lever');
   assert.equal(payload.url, 'https://jobs.lever.co/smart-working-solutions/c9fc3a3a-ca9d-4bdd-89e8-6d4eab4a19f6/apply');
+});
+
+test('job-page employer extraction uses structured hiringOrganization and rejects ATS/generic names',()=>{
+  assert.equal(companyFromJobPageData({jsonLd:[{'@type':'JobPosting',hiringOrganization:{name:'Actual Employer Inc.'}}]}), 'Actual Employer Inc.');
+  assert.equal(companyFromJobPageData({jsonLd:[{'@type':'JobPosting',hiringOrganization:{name:'Greenhouse'}}], explicit:['Lever']}), '');
+  assert.equal(companyFromJobPageData({jsonLd:[{'@type':'JobPosting',hiringOrganization:{name:'Company Website'}}], explicit:['Company Website','Careers']}), '');
+});
+
+test('external ATS payload cover letter is regenerated from verified job-page employer only',()=>{
+  const stale = 'Hi Greenlight team,\n\nOld stale text.';
+  const payload=buildApplicationPayload({
+    source:'valueserp-ats',
+    applicationMode:'external-ats',
+    applyUrl:'https://jobs.lever.co/greenlight/abc/apply',
+    title:'Claude Engineer',
+    company:'Greenlight',
+    coverLetter:stale,
+    metadata:{ats:'lever'}
+  });
+  refreshPayloadCoverLetterFromVerifiedEmployer(payload, '');
+  assert.match(payload.coverLetter, /^Hi hiring team,/);
+  assert.doesNotMatch(payload.coverLetter, /Hi Greenlight team/i);
+  const verified=refreshPayloadCoverLetterFromVerifiedEmployer(payload, 'Acme Robotics');
+  assert.equal(verified, 'Acme Robotics');
+  assert.equal(payload.job.company, 'Acme Robotics');
+  assert.equal(payload.job.metadata.employerVerifiedFromJobPage, true);
+  assert.match(payload.coverLetter, /^Hi Acme Robotics team,/);
 });
 
 test('canAutoSubmit is true only for known external ATS/email flows',()=>{
@@ -315,6 +531,55 @@ test('browserApply does not click anchors as final submit controls',async()=>{
   const result=await browserApply({job:{id:'b4'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
   assert.equal(result.status,'needs-human-review');
   assert.match(result.reason,/submit-button-not-found/);
+});
+
+test('clickFinalSubmit does not treat initial Apply as final submit for Workday-style pages', async () => {
+  let clicked=false;
+  const page={evaluate:async(fn,arg)=>fn(arg)};
+  const oldDocument=global.document;
+  try {
+    global.document={querySelectorAll:(selector)=> selector.includes('button') ? [{
+      innerText:'Apply', value:'', href:'', id:'', className:'', offsetWidth:80, offsetHeight:30,
+      getClientRects:()=>[{}], getAttribute:()=>'', click:()=>{ clicked=true; }
+    }] : []};
+    assert.equal(await clickFinalSubmit(page, 'workday'), false);
+    assert.equal(clicked, false);
+  } finally { global.document=oldDocument; }
+});
+
+test('clickProgressButton handles Workday Apply Manually progress action', async () => {
+  let clicked='';
+  const page={evaluate:async(fn)=>fn()};
+  const oldDocument=global.document;
+  try {
+    global.document={querySelectorAll:()=>[
+      {innerText:'Company Website',value:'',offsetWidth:80,offsetHeight:20,getClientRects:()=>[{}],getAttribute:()=>'',click(){clicked='bad';}},
+      {innerText:'Apply Manually',value:'',offsetWidth:80,offsetHeight:20,getClientRects:()=>[{}],getAttribute:()=>'',click(){clicked='manual';}}
+    ]};
+    assert.equal(await clickProgressButton(page), 'Apply Manually');
+    assert.equal(clicked, 'manual');
+  } finally { global.document=oldDocument; }
+});
+
+test('findBlockers uses nearby label text for Ashby UUID required fields', async () => {
+  const page={evaluate:async(fn)=>fn()};
+  const oldDocument=global.document;
+  try {
+    global.document={
+      body:{innerText:''},
+      querySelector:()=>null,
+      querySelectorAll:(selector)=>{
+        if (selector.includes('captcha')) return [];
+        if (selector === 'input, textarea, select') return [{
+          required:true, tagName:'INPUT', type:'text', name:'a330848c-uuid', id:'a330848c-uuid', placeholder:'1-415-555-1234...', value:'', disabled:false, tabIndex:0,
+          offsetWidth:20, offsetHeight:20, getClientRects:()=>[{}], getAttribute:(k)=>k==='type'?'text':null,
+          labels:null, closest:()=>({innerText:'Phone number *'})
+        }];
+        return [];
+      }
+    };
+    assert.deepEqual(await findBlockers(page), ['missing-required-common:phone number * a330848c-uuid a330848c-uuid 1-415-555-1234...']);
+  } finally { global.document=oldDocument; }
 });
 
 test('CLI jobs apply --approved --run-live for queued Greenhouse job invokes auto-apply dry-test path without network',()=>{

@@ -345,16 +345,24 @@ async function loginLinkedInIfNeeded(page) {
   await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await sleep(2500);
   let t = await visibleText(page);
-  if (!(/sign in|join now|email or phone/i.test(t) && !/start a post|feed/i.test(t))) return true;
+  const loggedIn = /start a post/i.test(t) || (/linkedin\.com\/feed\/?/.test(page.url()) && !/sign in|join now|email or phone/i.test(t));
+  if (loggedIn) return true;
+  // The public LinkedIn jobs/feed pages can contain the word "feed", which made the old
+  // check think we were logged in. If we see public auth prompts, force the real login flow.
   const email = process.env.LINKEDIN_EMAIL;
   const password = process.env.LINKEDIN_PASSWORD;
   if (!email || !password) throw new Error('LinkedIn session is not logged in and LINKEDIN_EMAIL/LINKEDIN_PASSWORD are missing from .env');
   await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await sleep(1000);
-  await page.type('#username,input[name="session_key"]', email, { delay: 10 });
-  await page.type('#password,input[name="session_password"]', password, { delay: 10 });
+  await page.type('#username,input[name="session_key"],input[type="email"]', email, { delay: 10 });
+  await page.type('#password,input[name="session_password"],input[type="password"]', password, { delay: 10 });
   await Promise.all([
-    page.click('button[type="submit"]'),
+    page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const btn = buttons.find(b => /sign in/i.test((b.innerText || b.getAttribute('aria-label') || '').trim())) || buttons[buttons.length - 1];
+      if (!btn) throw new Error('LinkedIn sign-in button not found');
+      btn.click();
+    }),
     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => null),
   ]);
   await sleep(3500);
@@ -362,7 +370,7 @@ async function loginLinkedInIfNeeded(page) {
   if (/captcha|security verification|verify your identity|two-step|verification code|pin sent|checkpoint/i.test(t)) {
     throw new Error('LinkedIn requires manual verification/MFA/CAPTCHA. Complete it in the browser profile, then rerun.');
   }
-  if (/sign in|email or phone/i.test(t) && !/start a post|feed/i.test(t)) throw new Error('LinkedIn login failed; check .env credentials or complete login manually.');
+  if (/sign in|join now|email or phone/i.test(t) && !/start a post/i.test(t)) throw new Error('LinkedIn login failed or remained signed out; complete login manually in the browser profile.');
   return true;
 }
 
