@@ -37,7 +37,7 @@ function lastApplyReason(job) {
   return '';
 }
 function nonRetryableReview(job) {
-  return /captcha-unsolved|\blogin\b|flagged as possible spam|job not found|already applied/i.test(lastApplyReason(job));
+  return /captcha-unsolved|\blogin\b|flagged as possible spam|spam-blocked|job not found|already applied/i.test(lastApplyReason(job));
 }
 function alreadyTerminal(job){
   const retryReview = /^(1|true|yes)$/i.test(process.env.HERMES_RETRY_NEEDS_REVIEW || '');
@@ -59,7 +59,7 @@ async function searchAndApprove(){
     let candidates=[];
     try {
       const jobs=[];
-      for (const target of valueserp.ATS_TARGETS.filter(t=>t.id!=='email')) {
+      for (const target of valueserp.ATS_TARGETS.filter(t=>t.id!=='email' && !(process.env.HERMES_DISABLE_ASHBY === '1' && t.id === 'ashby'))) {
         console.log(`SEARCH_TARGET\t${query}\t${target.id}`);
         try {
           const got = await valueserp.searchTarget(target,{query, remoteOnly:true, usaOnly:true, limit:PER_QUERY, maxPages:3});

@@ -148,7 +148,7 @@ function buildApplicationPayload(job = {}, opts = {}) {
 function canAutoSubmit(job = {}) {
   if (['native-profile','marketplace-proposal'].includes(job.applicationMode)) return false;
   const ats = detectAts(job.applyUrl || job.sourceUrl);
-  if (!SUPPORTED_ATS.has(ats) || ats === 'unknown') return false;
+  if (ats === 'ashby' && process.env.HERMES_DISABLE_ASHBY === '1') return false;
   return job.applicationMode ? ['external-ats','email','external','external-link'].includes(job.applicationMode) : true;
 }
 
@@ -167,10 +167,15 @@ function classifyScreeningAnswer(question, choices = []) {
   if (/(?:need|require|requires|requiring).*(?:visa|sponsor|sponsorship)/.test(q) || /(?:visa|sponsor|sponsorship).*(?:need|require|requires|requiring)/.test(q)) return 'no';
   if (/acceptable.*(?:salary|compensation|pay).*range/.test(q) || /(?:salary|compensation|pay).*range.*acceptable/.test(q)) return 'no';
   if (has(/(?:previously|formerly|ever).*(?:employed|worked).*(?:with|for|at)\b/) || has(/(?:employed|worked).*(?:with|for|at).*(?:previously|formerly|before)/) || has(/(?:recruiting process|interviewed|spoken to anyone).*(?:role|position|company|associates)/)) return 'no';
+  if (has(/family|friends?.*(?:currently )?employed|related to anyone at the company/)) return 'no';
   if (has(/(?:ccpa|privacy|consumer privacy|disclosure|policy).*(?:acknowledge|provided|consent|agree)/) || has(/(?:acknowledge|provided|consent|agree).*(?:ccpa|privacy|consumer privacy|disclosure|policy)/)) return 'yes';
   if (has(/(?:event|conference|kubecon).*(?:meet|met|see|saw|attend|attending)/) || has(/(?:meet|met|see|saw).*(?:event|conference|kubecon)/)) return 'no';
   if (has(/(?:active|current).*(?:clearance|security clearance|government issued clearance)/) || has(/(?:clearance|security clearance).*(?:active|current|level)/)) return 'no';
   if (has(/(?:credentialed|credential).*(?:with|by)/)) return 'no';
+  if (has(/18 years of age or older|over\s*18|eighteen years/)) return 'yes';
+  if (has(/startup company/)) return 'yes';
+  if (has(/full[- ]time employment|interested in full[- ]time/)) return 'yes';
+  if (has(/production llm-powered system|built.*operated.*production.*llm|served real end users.*live environment/)) return 'yes';
   if (has(/\b(?:pmp|scrum master|prince2|project management professional|certification|certified|credential)s?\b/)) return 'no';
   if (has(/\b(?:ehr|emr|meditech|cerner|oracle health|epic|hl7|fhir)\b/)) return 'no';
   if (has(/hospital settings?|in hospitals?|clinical setting/) && has(/(?:delivered|implemented|deployed|rolled out|solution|healthcare it)/)) return 'no';
@@ -778,7 +783,10 @@ async function fillAdapterSpecificFields(page, payload) {
       else if (/how.*hear|how.*heard|source.*opportunity|hear.*opportunity/.test(label)) setValue(el, 'Google / job search');
       else if (/current.*state.*residency|state.*residency/.test(label)) setValue(el, a.state);
       else if (/middle\s*name/.test(label)) setValue(el, 'N/A');
-      else if (/pronouns?/.test(label)) setValue(el, 'he/him');
+      else if (/pronouns?/.test(label)) setValue(el, 'He/him/his');
+      else if (a.ats === 'ashby' && /first and last name.*legal name/.test(label)) setValue(el, a.name);
+      else if (a.ats === 'ashby' && /website|portfolio/.test(label)) setValue(el, a.website);
+      else if (a.ats === 'ashby' && /snack fuels|favorite snack|best ideas/.test(label)) setValue(el, 'Trail mix');
       else if (a.ats === 'ashby' && /start typing/i.test(el.placeholder || '') && !el.name && !el.id) setValue(el, a.location);
       else if (a.ats === 'ashby' && /why.*work.*(?:curri|company|here)|why.*want.*work/.test(label)) setValue(el, 'I am excited about the role because it combines product-minded engineering, automation, and real operational impact. My background in full-stack software, AI workflows, and customer-facing systems maps well to building useful tools for distributed teams and improving delivery workflows.');
       else if (a.ats === 'ashby' && /plumber.*sparked.*idea|sparked.*idea.*curri/.test(label)) setValue(el, 'I am not sure.');
@@ -858,6 +866,14 @@ async function fillAdapterSpecificFields(page, payload) {
       if (cb.disabled || cb.checked) continue;
       const label = labelFor(cb);
       const answer = classifyScreeningAnswerInPage(label, ['Yes','No']);
+      if (/pronouns?/.test(label) && /he\/him\/his/.test(label)) {
+        const lab = cb.id ? document.querySelector?.(`label[for="${CSS.escape(cb.id)}"]`) : null;
+        if (lab && visible(lab)) lab.click?.(); else cb.click?.();
+        cb.checked = true;
+        cb.dispatchEvent?.(new Event('input',{bubbles:true}));
+        cb.dispatchEvent?.(new Event('change',{bubbles:true}));
+        continue;
+      }
       if (answer === 'yes' || /agree|consent|terms|privacy|ccpa|disclosure|acknowledge|confirm|certif/.test(label)) {
         const lab = cb.id ? document.querySelector?.(`label[for="${CSS.escape(cb.id)}"]`) : null;
         if (lab && visible(lab)) lab.click?.(); else cb.click?.();
@@ -892,16 +908,36 @@ async function fillAdapterSpecificFields(page, payload) {
       }
     }
     // Ashby yes/no controls render as visible Yes/No buttons plus a hidden checkbox.
-    if (a.ats === 'ashby') {
-      for (const entry of document.querySelectorAll('.ashby-application-form-field-entry')) {
-        const buttons = Array.from(entry.querySelectorAll('button')).filter(visible);
-        if (!buttons.some(b => /^yes$/i.test((b.innerText || '').trim())) || !buttons.some(b => /^no$/i.test((b.innerText || '').trim()))) continue;
-        const question = (entry.innerText || '').replace(/\s+/g,' ');
-        const answer = classifyScreeningAnswerInPage(question, buttons.map(b => b.innerText || '')) || 'yes';
-        const hit = buttons.find(b => new RegExp(`^${answer}$`, 'i').test((b.innerText || '').trim())) || buttons.find(b => /^yes$/i.test((b.innerText || '').trim()));
-        hit?.click?.();
+      if (a.ats === 'ashby') {
+        for (const entry of document.querySelectorAll('.ashby-application-form-field-entry')) {
+          const buttons = Array.from(entry.querySelectorAll('button')).filter(visible);
+          if (!buttons.some(b => /^yes$/i.test((b.innerText || '').trim())) || !buttons.some(b => /^no$/i.test((b.innerText || '').trim()))) continue;
+          const question = (entry.innerText || '').replace(/\s+/g,' ');
+          const answer = classifyScreeningAnswerInPage(question, buttons.map(b => b.innerText || '')) || 'yes';
+          const hit = buttons.find(b => new RegExp(`^${answer}$`, 'i').test((b.innerText || '').trim())) || buttons.find(b => /^yes$/i.test((b.innerText || '').trim()));
+          hit?.click?.();
+        }
+        for (const entry of document.querySelectorAll('.ashby-application-form-field-entry')) {
+          const label = (entry.innerText || '').replace(/\s+/g,' ').toLowerCase();
+          const radios = Array.from(entry.querySelectorAll('input[type=radio]')).filter(r => !r.disabled);
+          const selectRadio = (re) => {
+            const hit = radios.find(r => re.test((r.closest?.('label')?.innerText || r.parentElement?.innerText || r.value || '').replace(/\s+/g,' ').trim()));
+            if (hit) {
+              const lab = hit.id ? document.querySelector?.(`label[for="${CSS.escape(hit.id)}"]`) : null;
+              if (lab && visible(lab)) lab.click?.(); else hit.click?.();
+              hit.checked = true;
+              hit.dispatchEvent?.(new Event('input',{bubbles:true}));
+              hit.dispatchEvent?.(new Event('change',{bubbles:true}));
+              return true;
+            }
+            return false;
+          };
+          if (/gender identity/.test(label)) { selectRadio(/prefer not to disclose/i); continue; }
+          if (/veteran status/.test(label)) { selectRadio(/i am not a veteran/i); continue; }
+          if (/quality, safety, or compliance/.test(label)) { selectRadio(/privacy\s*\/\s*equity\s*\/\s*regulation compliant|privacy.*equity.*regulation compliant/i); continue; }
+          if (/role in system design and technical decision-making/.test(label)) { selectRadio(/shared architectural ownership/i); continue; }
+        }
       }
-    }
     // ApplyToJob/JazzHR and Jobvite selects
     for (const sel of document.querySelectorAll('select')) {
       const label = labelFor(sel);
@@ -919,7 +955,7 @@ async function fillAdapterSpecificFields(page, payload) {
       else if (/background|credit/.test(label)) chooseSelect(sel, [/^yes$/i]);
       else if (/currently reside.*fl.*ga.*il.*tx|following states/.test(label)) chooseSelect(sel, [/^no$/i]);
       else if (/contact.*text/.test(label)) chooseSelect(sel, [/^no$/i]);
-      else if (/how did you learn|source/.test(label)) chooseSelect(sel, [/linkedin/i, /job board/i, /other/i, /website/i]);
+      else if (/how did you learn|source/.test(label)) chooseSelect(sel, [/google/i, /job board/i, /linkedin/i, /other/i, /website/i]);
       else if (/location.*applying|which location/.test(label)) chooseSelect(sel, [/remote/i, /san francisco/i, /new york/i]);
     }
   }, a).catch(()=>{});
@@ -1115,12 +1151,14 @@ async function clickInitialApplyLink(page, ats = '') {
   return page.evaluate((adapterSpec) => {
     function visible(el){ return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length); }
     const initialRes = (adapterSpec.initialApplyTexts || []).map(s => new RegExp(s.source, s.flags));
-    const candidates = Array.from(document.querySelectorAll('a, button')).filter(visible);
+    const candidates = Array.from(document.querySelectorAll('a, button, input[type=button], input[type=submit], [role="button"]')).filter(visible);
     const el = candidates.find(e => {
       const text = (e.innerText || e.value || e.getAttribute('aria-label') || '').replace(/\s+/g,' ').trim();
       const href = e.href || '';
       if (/submit|share|back|view|website|cookie|dismiss|allow|reject|linkedin|indeed|upload|import|resume|cv/i.test(text)) return false;
-      return initialRes.some(re => re.test(text)) || /^(apply|apply now|apply to position|apply for this job|apply manually|autofill with resume|bewerben|jetzt bewerben)$/i.test(text) || /\/(apply|application)(\/|$|\?)/i.test(href);
+      return initialRes.some(re => re.test(text))
+        || /^(apply|apply now|apply here|apply to position|apply for this job|apply manually|autofill with resume|start application|start your application|bewerben|jetzt bewerben)$/i.test(text)
+        || /\/(apply|application)(\/|$|\?)/i.test(href);
     });
     if (el) { el.click(); return true; }
     return false;
@@ -1190,9 +1228,10 @@ async function verifySubmission(page, beforeUrl) {
   return page.evaluate((priorUrl) => {
     const text = document.body ? document.body.innerText.toLowerCase() : '';
     const successText = /application submitted|thank you for applying|thanks for applying|successfully submitted|we received your application|your application has been received|application complete|we have received your application|application sent|your application was sent|we'll be in touch|we will be in touch|already applied to this job|you've already applied|you have already applied/.test(text);
+    const spamRejected = /flagged as possible spam|couldn't submit your application|we couldn't submit your application/.test(text);
     const urlChangedToSuccess = location.href !== priorUrl && /(thank|success|submitted|confirmation)/i.test(location.href);
-    return successText || urlChangedToSuccess;
-  }, beforeUrl).catch(() => false);
+    return spamRejected ? 'spam-blocked' : ((successText || urlChangedToSuccess) ? 'success' : 'pending');
+  }, beforeUrl).catch(() => 'pending');
 }
 async function waitForVerifiedSubmission(page, beforeUrl, opts = {}) {
   const attempts = Number(opts.verifyAttempts || process.env.HERMES_ATS_VERIFY_ATTEMPTS || 6);
@@ -1200,10 +1239,12 @@ async function waitForVerifiedSubmission(page, beforeUrl, opts = {}) {
   const initialDelayMs = Math.max(10000, Number(opts.verifyInitialDelayMs || process.env.HERMES_ATS_VERIFY_INITIAL_DELAY_MS || 10000));
   await page.waitForTimeout?.(initialDelayMs);
   for (let i = 0; i < attempts; i++) {
-    if (await verifySubmission(page, beforeUrl)) return true;
+    const status = await verifySubmission(page, beforeUrl);
+    if (status === 'success' || status === true) return 'success';
+    if (status === 'spam-blocked') return 'spam-blocked';
     await page.waitForTimeout?.(delayMs);
   }
-  return false;
+  return 'pending';
 }
 async function waitForSubmitToSettle(page, opts = {}) {
   const timeoutMs = Math.max(30000, Number(opts.submitSettleMs || process.env.HERMES_ATS_SUBMIT_SETTLE_MS || 120000));
@@ -1216,10 +1257,12 @@ async function waitForSubmitToSettle(page, opts = {}) {
         return /submitting|please wait|processing|saving|loading/.test(label) || el.getAttribute('aria-busy') === 'true';
       });
       const success = /thank you|application submitted|application received|successfully submitted|we received your application|your application has been received|already applied/.test(text);
+      const spam = /flagged as possible spam|couldn't submit your application|we couldn't submit your application/.test(text);
       const errors = /required|is invalid|please complete|application contains errors|there was an error/.test(text);
-      return {busy, success, errors};
-    }).catch(() => ({busy:false, success:false, errors:false}));
+      return {busy, success, spam, errors};
+    }).catch(() => ({busy:false, success:false, spam:false, errors:false}));
     if (state.success) return 'success';
+    if (state.spam) return 'spam-blocked';
     if (!state.busy && state.errors) return 'errors';
     if (!state.busy && Date.now() - start > 30000) return 'settled';
     await page.waitForTimeout?.(5000);
@@ -1435,6 +1478,13 @@ async function browserApply({job,payload,opts}) {
     if (payload.ats === 'breezy') await fillFirst(page, ['textarea[name="cSummary"]'], payload.coverLetter || 'Please see my attached resume and cover letter.');
     await fillFirst(page, ['textarea[name*=cover i]','textarea[id*=cover i]','textarea[placeholder*=cover i]','textarea'], payload.coverLetter);
     let blockers = await findBlockers(page);
+    if (blockers.includes('captcha')) {
+      const solved = await trySolveCaptcha(page).catch(() => false);
+      if (solved) {
+        await page.waitForTimeout?.(5000);
+        blockers = await findBlockers(page);
+      }
+    }
     if (blockers.includes('captcha')) return {status:'needs-human-review', reason:'captcha-unsolved'};
     if (blockers.length) return {status:'needs-human-review', reason:blockers.join(';')};
     if (opts.submit !== true) return {status:'prepared', reason:'submit-not-requested'};
@@ -1446,8 +1496,11 @@ async function browserApply({job,payload,opts}) {
       if (clicked) {
         clickedAny = true;
         await page.waitForNavigation?.({waitUntil:'networkidle2',timeout:opts.timeoutMs||30000}).catch(()=>page.waitForTimeout?.(30000));
-        await waitForSubmitToSettle(page, opts);
-        if (await waitForVerifiedSubmission(page, beforeUrl, opts)) return {status:'submitted', reason:'submission-verified'};
+        const settleState = await waitForSubmitToSettle(page, opts);
+        if (settleState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
+        const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
+        if (verifiedState === 'success' || verifiedState === true) return {status:'submitted', reason:'submission-verified'};
+        if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
       } else {
         const progressed = await clickProgressButton(page);
         if (!progressed) break;
@@ -1468,7 +1521,9 @@ async function browserApply({job,payload,opts}) {
       blockers = await findBlockers(page);
       if (blockers.some(b => /blocker-check-failed:.*detached Frame/i.test(b))) {
         await page.waitForTimeout?.(5000);
-        if (await waitForVerifiedSubmission(page, beforeUrl, opts)) return {status:'submitted', reason:'submission-verified'};
+        const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
+        if (verifiedState === 'success' || verifiedState === true) return {status:'submitted', reason:'submission-verified'};
+        if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
         continue;
       }
       if (blockers.includes('captcha')) return {status:'needs-human-review', reason:'captcha-unsolved'};
@@ -1477,8 +1532,11 @@ async function browserApply({job,payload,opts}) {
       if (currentUrl !== beforeUrl) beforeUrl = currentUrl;
     }
     if (!clickedAny) return {status:'needs-human-review', reason:`submit-button-not-found:${await submitDiagnostics(page)}`};
-    await waitForSubmitToSettle(page, opts);
-    if (await waitForVerifiedSubmission(page, beforeUrl, opts)) return {status:'submitted', reason:'submission-verified'};
+    const settleState = await waitForSubmitToSettle(page, opts);
+    if (settleState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
+    const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
+    if (verifiedState === 'success' || verifiedState === true) return {status:'submitted', reason:'submission-verified'};
+    if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
     const unverifiedResult = {status:'needs-human-review', reason:`submission-unverified:${await submitDiagnostics(page)}`};
     await maybeHoldVisibleBrowserAfterSubmit(page, clickedAny, unverifiedResult);
     return unverifiedResult;
