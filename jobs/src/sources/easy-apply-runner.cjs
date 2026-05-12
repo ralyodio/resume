@@ -2,7 +2,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { normalizeJob } = require('../normalize/job.cjs');
 
-const RESUME_ROOT = '/home/ettinger/Desktop/resume';
+const RESUME_ROOT = process.env.HERMES_RESUME_DIR || path.resolve(__dirname, '..', '..', '..');
 
 function splitSearches(query, fallback) {
   return String(query || fallback || '').split('|').map(s => s.trim()).filter(Boolean).join('|');

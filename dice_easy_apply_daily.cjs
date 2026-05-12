@@ -12,8 +12,9 @@ function loadLocalEnv() {
 }
 loadLocalEnv();
 
-const RESUME_PDF = process.env.RESUME_PDF || '/home/ettinger/Desktop/resume/anthony.ettinger.resume4.pdf';
-const COVER_PDF = process.env.COVER_PDF || '/home/ettinger/Desktop/resume/anthony.ettinger.cover4.pdf';
+const REPO_ROOT = path.resolve(__dirname);
+const RESUME_PDF = process.env.RESUME_PDF || path.join(REPO_ROOT, 'anthony.ettinger.resume4.pdf');
+const COVER_PDF = process.env.COVER_PDF || path.join(REPO_ROOT, 'anthony.ettinger.cover4.pdf');
 const CHROME_PROFILE = process.env.CHROME_PROFILE || `${process.env.HOME}/.cache/hermes-dice-chrome`;
 const CHROME = process.env.CHROME || puppeteer.executablePath();
 const STATE_DIR = process.env.STATE_DIR || '/tmp/dice-easyapply-daily';

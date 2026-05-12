@@ -184,7 +184,7 @@ function resultToJob(result,{target,query,remoteOnly=false,usaOnly}){
 }
 async function searchTarget(target, opts={}){
   const apiKey=opts.apiKey || getApiKey();
-  if(!apiKey) throw new Error('VALUESERP_API_KEY missing; set it in /home/ettinger/Desktop/resume/.env');
+  if(!apiKey) throw new Error('VALUESERP_API_KEY missing; set it in .env at the repo root');
   const maxPages=Number(opts.maxPages || opts['max-pages'] || process.env.VALUESERP_MAX_PAGES || 100);
   const limit=Number(opts.limit || 25);
   const out=[];
