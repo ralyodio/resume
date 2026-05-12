@@ -3,6 +3,7 @@ const path = require('path');
 const { appendAuditEvent } = require('../audit/audit-log.cjs');
 const { ATS_ADAPTERS, getAtsAdapter } = require('./ats-adapters.cjs');
 const { generateCoverLetter, normalizeCoverLetterText } = require('../cover/generate-cover-letter.cjs');
+const { fetchText } = require('../util/fetch.cjs');
 
 const RESUME4_PATH = '/home/ettinger/Desktop/resume/anthony.ettinger.resume4.pdf';
 const COVER4_PATH = '/home/ettinger/Desktop/resume/anthony.ettinger.cover4.pdf';
@@ -63,15 +64,14 @@ function extractAtsApplyUrlFromHtml(html, baseUrl='') {
 }
 const AGGREGATOR_SOURCES = new Set(['remotive','arbeitnow','jobicy','themuse','web3-career','himalayas','cryptocurrencyjobs','laborx','builtin','weworkremotely']);
 async function fetchPageHtmlDefault(url, timeoutMs=12000) {
-  if (typeof fetch !== 'function') return '';
-  const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timer = ac ? setTimeout(() => ac.abort(), timeoutMs) : null;
   try {
-    const res = await fetch(url, { headers:{'user-agent':process.env.HERMES_ATS_USER_AGENT || 'Mozilla/5.0 Hermes Jobs ATS Resolver'}, signal:ac?.signal });
-    if (!res.ok) return '';
-    return await res.text();
-  } catch { return ''; }
-  finally { if (timer) clearTimeout(timer); }
+    return await fetchText(url, {
+      timeoutMs,
+      headers:{'user-agent':process.env.HERMES_ATS_USER_AGENT || 'Mozilla/5.0 Hermes Jobs ATS Resolver'}
+    });
+  } catch {
+    return '';
+  }
 }
 async function resolveAggregatorApplyUrl(job={}, opts={}) {
   const original = job.applyUrl || job.sourceUrl || '';
@@ -1425,12 +1425,27 @@ async function browserApply({job,payload,opts}) {
   if (!puppeteer) return {status:'needs-human-review', reason:'puppeteer-not-installed'};
   if (!fs.existsSync(payload.resumePath)) return {status:'needs-human-review', reason:`resume-missing:${payload.resumePath}`};
   const launchArgs = ['--disable-dev-shm-usage'];
+  const proxyUrl = process.env.PROXY_URL || process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
   if (opts.noSandbox || process.env.HERMES_PUPPETEER_NO_SANDBOX === '1') launchArgs.push('--no-sandbox','--disable-setuid-sandbox');
+  if (proxyUrl) {
+    try {
+      const parsedProxy = new URL(proxyUrl);
+      launchArgs.push(`--proxy-server=${parsedProxy.protocol}//${parsedProxy.host}`);
+    } catch {}
+  }
   if (process.env.HERMES_PUPPETEER_EXTRA_ARGS) launchArgs.push(...process.env.HERMES_PUPPETEER_EXTRA_ARGS.split(/\s+/).filter(Boolean));
   if (opts.headless === false) launchArgs.push('--start-maximized');
   const browser = await puppeteer.launch({headless: opts.headless !== false, defaultViewport:null, args:launchArgs, timeout: Number(process.env.HERMES_PUPPETEER_LAUNCH_TIMEOUT_MS || opts.launchTimeoutMs || 60000)});
   try {
     const page = await browser.newPage();
+    if (proxyUrl) {
+      try {
+        const parsedProxy = new URL(proxyUrl);
+        if (parsedProxy.username || parsedProxy.password) {
+          await page.authenticate({ username: decodeURIComponent(parsedProxy.username), password: decodeURIComponent(parsedProxy.password) });
+        }
+      } catch {}
+    }
     await page.setViewport?.({width:1366,height:900});
     await page.setUserAgent?.(process.env.HERMES_ATS_USER_AGENT || 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
     await page.goto(payload.url, {waitUntil:'domcontentloaded', timeout: opts.timeoutMs || 30000});

@@ -432,11 +432,12 @@ test('email apply writes draft in dry-run and does not send without SMTP credent
 });
 
 function fakePuppeteer({blockers=[], clicked=true, verified=true, anchorOnly=false}={}) {
-  const state = { launchOptions:null, queries:[] };
+  const state = { launchOptions:null, queries:[], auth:null };
   const page = {
     url: () => 'https://boards.greenhouse.io/acme/jobs/123',
     goto: async()=>{},
     waitForTimeout: async()=>{},
+    authenticate: async(creds)=>{ state.auth=creds; },
     $: async()=>({click:async()=>{},type:async()=>{}}),
     $$: async()=>[{uploadFile:async()=>{}}],
     evaluate: async(fn, arg)=>{
@@ -457,6 +458,20 @@ test('browserApply does not use sandbox-disabling args by default and verifies s
   assert.equal(result.reason,'submission-verified');
   assert.deepEqual(state.launchOptions.args,['--disable-dev-shm-usage']);
   assert.deepEqual(state.queries,['safe-submit-selector']);
+});
+
+test('browserApply configures Chromium proxy and authenticates when PROXY_URL is set',async()=>{
+  const {state,puppeteer}=fakePuppeteer({verified:true});
+  const oldProxy=process.env.PROXY_URL;
+  process.env.PROXY_URL='http://user%40name:pa%24%24@proxy.example:8080';
+  try {
+    const result=await browserApply({job:{id:'b1p'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
+    assert.equal(result.status,'submitted');
+    assert.ok(state.launchOptions.args.includes('--proxy-server=http://proxy.example:8080'));
+    assert.deepEqual(state.auth,{username:'user@name',password:'pa$$'});
+  } finally {
+    if (oldProxy === undefined) delete process.env.PROXY_URL; else process.env.PROXY_URL=oldProxy;
+  }
 });
 
 test('browserApply returns needs-human-review when click is not verified',async()=>{
