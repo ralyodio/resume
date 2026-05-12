@@ -9,6 +9,7 @@
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^['"]|['"]$/g, '');
   }
 })();
+const path = require('path');
 const { spawnSync } = require('child_process');
 const { defaultHermesJobConfig } = require('./config/defaults.cjs');
 const { getSource, listSources } = require('./sources/index.cjs');
@@ -57,7 +58,7 @@ async function searchSources({store,args,sourceIds}) {
   return count;
 }
 function scoreNew(store){ let n=0; for(const job of store.all().filter(j=>j.status==='new')){ const s=scoreJob(job); store.upsert({...job,...s,status:'scored'},'score'); n++; console.log(`${s.score}\t${s.decision}\t${job.title}\t${job.company}\t${s.reasons.join('; ')}`); } return n; }
-function queueScored(store, min){ let n=0; const queueDecisions=new Set(['queue-for-review','auto-apply-eligible']); for(const job of store.all().filter(j=>(j.score||0)>=min && ['new','scored'].includes(j.status) && queueDecisions.has(j.decision))){ const resumePath=selectResume(job); const coverPdfPath=process.env.COVER_PDF || '/home/ettinger/Desktop/resume/anthony.ettinger.cover4.pdf'; const coverLetter=generateCoverLetter(job); store.upsert({...job,status:'queued',resumePath,coverPdfPath,coverLetter},'queue'); n++; console.log(`queued\t${job.score}\t${job.title}\t${job.company}`); } return n; }
+function queueScored(store, min){ const repoRoot=path.resolve(__dirname,'..','..'); let n=0; const queueDecisions=new Set(['queue-for-review','auto-apply-eligible']); for(const job of store.all().filter(j=>(j.score||0)>=min && ['new','scored'].includes(j.status) && queueDecisions.has(j.decision))){ const resumePath=selectResume(job); const coverPdfPath=process.env.COVER_PDF || path.join(repoRoot,'anthony.ettinger.cover4.pdf'); const coverLetter=generateCoverLetter(job); store.upsert({...job,status:'queued',resumePath,coverPdfPath,coverLetter},'queue'); n++; console.log(`queued\t${job.score}\t${job.title}\t${job.company}`); } return n; }
 function easyApplySources(){ return listSources().filter(s=>s.supportsNativeApply && s.supportsEasyApply); }
 async function runEasyApplyRotation({args,store}){
   const include = Boolean(args['include-easy-apply'] || args['include-legacy']);

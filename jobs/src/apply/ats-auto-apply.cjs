@@ -5,9 +5,10 @@ const { ATS_ADAPTERS, getAtsAdapter } = require('./ats-adapters.cjs');
 const { generateCoverLetter, normalizeCoverLetterText } = require('../cover/generate-cover-letter.cjs');
 const { fetchText } = require('../util/fetch.cjs');
 
-const RESUME4_PATH = '/home/ettinger/Desktop/resume/anthony.ettinger.resume4.pdf';
-const COVER4_PATH = '/home/ettinger/Desktop/resume/anthony.ettinger.cover4.pdf';
-const PHOTO_PATH = '/home/ettinger/Desktop/resume/anthony.ettinger.photo.jpeg';
+const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+const RESUME4_PATH = process.env.RESUME_PDF || path.join(REPO_ROOT, 'anthony.ettinger.resume4.pdf');
+const COVER4_PATH = process.env.COVER_PDF || path.join(REPO_ROOT, 'anthony.ettinger.cover4.pdf');
+const PHOTO_PATH = process.env.PHOTO_PATH || path.join(REPO_ROOT, 'anthony.ettinger.photo.jpeg');
 const SUPPORTED_ATS = new Set(['greenhouse','lever','ashby','workable','smartrecruiters','workday','bamboohr','applytojob','breezy','icims','jobvite','recruiterbox','email']);
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -100,8 +101,8 @@ function envFirst(keys) { for (const k of keys) if (process.env[k]) return proce
 function defaultCoverLetterText() {
   const candidates = [
     process.env.COVER_MD,
-    '/home/ettinger/Desktop/resume/anthony.ettinger.cover4.md',
-    '/home/ettinger/Desktop/resume/anthony.ettinger.cover.md'
+    path.join(REPO_ROOT, 'anthony.ettinger.cover4.md'),
+    path.join(REPO_ROOT, 'anthony.ettinger.cover.md')
   ].filter(Boolean);
   for (const file of candidates) {
     try {
@@ -1157,7 +1158,7 @@ async function clickInitialApplyLink(page, ats = '') {
       const href = e.href || '';
       if (/submit|share|back|view|website|cookie|dismiss|allow|reject|linkedin|indeed|upload|import|resume|cv/i.test(text)) return false;
       return initialRes.some(re => re.test(text))
-        || /^(apply|apply now|apply here|apply to position|apply for this job|apply manually|autofill with resume|start application|start your application|bewerben|jetzt bewerben)$/i.test(text)
+        || /^(apply|apply now|apply here|apply to position|apply for this job|apply for this role|apply manually|autofill with resume|start application|start your application|begin application|i'm interested|apply to this job|apply with resume|bewerben|jetzt bewerben)$/i.test(text)
         || /\/(apply|application)(\/|$|\?)/i.test(href);
     });
     if (el) { el.click(); return true; }
@@ -1168,10 +1169,10 @@ async function clickProgressButton(page) {
   return page.evaluate(() => {
     function visible(el){ return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length); }
     const candidates = Array.from(document.querySelectorAll('button, input[type=submit], input[type=button], a[role=button], a[href="#"], a[href="javascript:void(0)"]')).filter(visible);
-    const bad = /cookie|linkedin|indeed|google|facebook|back|cancel|dismiss|reject|decline|share|company website/i;
+    const bad = /cookie|linkedin|indeed|google|facebook|back|cancel|dismiss|reject|decline|share|company website|sign.?in|log.?in|create.?account/i;
     const el = candidates.find(e => {
       const text = (e.innerText || e.value || e.getAttribute('aria-label') || '').replace(/\s+/g,' ').trim();
-      return text && !bad.test(text) && /^(next|continue|review|save and continue|apply manually|use my last application|start application|bewerben|jetzt bewerben)$/i.test(text);
+      return text && !bad.test(text) && /^(next|continue|proceed|review|review application|review & submit|review and submit|save and continue|save & continue|go to next step|next step|forward|apply manually|use my last application|start application|bewerben|jetzt bewerben)$/i.test(text);
     });
     if (el) { el.click(); return (el.innerText || el.value || el.getAttribute('aria-label') || '').trim(); }
     return '';
@@ -1187,9 +1188,9 @@ async function clickFinalSubmit(page, ats = '') {
     const candidates = Array.from(document.querySelectorAll(selector)).filter(visible);
     const el = candidates.find(e => {
       const text = (e.innerText || e.value || e.getAttribute('aria-label') || '').replace(/\s+/g,' ').trim();
-      if (/cookie|linkedin|indeed|google|facebook|back|cancel|dismiss|reject|decline|share/i.test(text)) return false;
+      if (/cookie|linkedin|indeed|google|facebook|back|cancel|dismiss|reject|decline|share|sign.?in|log.?in|create.?account|save.?draft|save.?for.?later/i.test(text)) return false;
       if (adapterSpec.id === 'applytojob' && e.id === 'resumator-submit-resume' && /^submit application$/i.test(text)) return true;
-      return textRes.some(re => re.test(text)) || /^(submit|submit application|send application)$/i.test(text);
+      return textRes.some(re => re.test(text)) || /^(submit|submit application|submit your application|submit my application|send application|send my application|apply|apply now|apply for this job|apply for this role|complete application|complete submission|confirm|confirm and submit|confirm application|finish|finish application|done|send)$/i.test(text);
     });
     if (el) {
       el.click();
@@ -1227,27 +1228,32 @@ async function submitDiagnostics(page) {
 async function verifySubmission(page, beforeUrl) {
   return page.evaluate((priorUrl) => {
     const text = document.body ? document.body.innerText.toLowerCase() : '';
-    const successText = /application submitted|thank you for applying|thanks for applying|successfully submitted|we received your application|your application has been received|application complete|we have received your application|application sent|your application was sent|we'll be in touch|we will be in touch|already applied to this job|you've already applied|you have already applied/.test(text);
+    const successText = /application submitted|thank you for applying|thanks for applying|successfully submitted|we received your application|your application has been received|application complete|we have received your application|application has been submitted|application sent|your application was sent|we'll be in touch|we will be in touch|we'll review your application|we will review your application|thanks for your interest|thank you for your application|you've successfully applied|you have successfully applied|already applied to this job|you've already applied|you have already applied/.test(text);
     const spamRejected = /flagged as possible spam|couldn't submit your application|we couldn't submit your application/.test(text);
-    const urlChangedToSuccess = location.href !== priorUrl && /(thank|success|submitted|confirmation)/i.test(location.href);
-    return spamRejected ? 'spam-blocked' : ((successText || urlChangedToSuccess) ? 'success' : 'pending');
+    const urlChangedToSuccess = location.href !== priorUrl && /(thank|success|submitted|confirmation|complete|applied)/i.test(location.href);
+    const successElement = document.querySelector('[class*="success"], [class*="complete"], [class*="confirmation"], [data-testid*="success"]');
+    const hasSuccessElement = successElement && !!(successElement.offsetWidth || successElement.offsetHeight);
+    return spamRejected ? 'spam-blocked' : ((successText || urlChangedToSuccess || hasSuccessElement) ? 'success' : 'pending');
   }, beforeUrl).catch(() => 'pending');
 }
 async function waitForVerifiedSubmission(page, beforeUrl, opts = {}) {
   const attempts = Number(opts.verifyAttempts || process.env.HERMES_ATS_VERIFY_ATTEMPTS || 6);
-  const delayMs = Math.max(10000, Number(opts.verifyDelayMs || process.env.HERMES_ATS_VERIFY_DELAY_MS || 10000));
-  const initialDelayMs = Math.max(10000, Number(opts.verifyInitialDelayMs || process.env.HERMES_ATS_VERIFY_INITIAL_DELAY_MS || 10000));
-  await page.waitForTimeout?.(initialDelayMs);
+  const rawDelay = Number(opts.verifyDelayMs || process.env.HERMES_ATS_VERIFY_DELAY_MS || 10000);
+  const rawInitial = Number(opts.verifyInitialDelayMs || process.env.HERMES_ATS_VERIFY_INITIAL_DELAY_MS || 10000);
+  const delayMs = opts.verifyDelayMs !== undefined ? rawDelay : Math.max(10000, rawDelay);
+  const initialDelayMs = opts.verifyInitialDelayMs !== undefined ? rawInitial : Math.max(10000, rawInitial);
+  await sleep(initialDelayMs);
   for (let i = 0; i < attempts; i++) {
     const status = await verifySubmission(page, beforeUrl);
     if (status === 'success' || status === true) return 'success';
     if (status === 'spam-blocked') return 'spam-blocked';
-    await page.waitForTimeout?.(delayMs);
+    await sleep(delayMs);
   }
   return 'pending';
 }
 async function waitForSubmitToSettle(page, opts = {}) {
-  const timeoutMs = Math.max(30000, Number(opts.submitSettleMs || process.env.HERMES_ATS_SUBMIT_SETTLE_MS || 120000));
+  const rawSettle = Number(opts.submitSettleMs || process.env.HERMES_ATS_SUBMIT_SETTLE_MS || 120000);
+  const timeoutMs = opts.submitSettleMs !== undefined ? rawSettle : Math.max(30000, rawSettle);
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const state = await page.evaluate(() => {
@@ -1264,8 +1270,9 @@ async function waitForSubmitToSettle(page, opts = {}) {
     if (state.success) return 'success';
     if (state.spam) return 'spam-blocked';
     if (!state.busy && state.errors) return 'errors';
-    if (!state.busy && Date.now() - start > 30000) return 'settled';
-    await page.waitForTimeout?.(5000);
+    const minSettleWait = opts.submitSettleMs !== undefined ? Math.min(rawSettle, 30000) : 30000;
+    if (!state.busy && Date.now() - start > minSettleWait) return 'settled';
+    await sleep(Math.min(5000, timeoutMs));
   }
   return 'timeout';
 }
@@ -1449,7 +1456,7 @@ async function browserApply({job,payload,opts}) {
     await page.setViewport?.({width:1366,height:900});
     await page.setUserAgent?.(process.env.HERMES_ATS_USER_AGENT || 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
     await page.goto(payload.url, {waitUntil:'domcontentloaded', timeout: opts.timeoutMs || 30000});
-    await page.waitForTimeout?.(3000);
+    await sleep(3000);
     await ensureNonEmptyPage(page);
     const verifiedEmployer = await extractEmployerFromJobPage(page);
     const refreshedEmployer = refreshPayloadCoverLetterFromVerifiedEmployer(payload, verifiedEmployer);
@@ -1457,8 +1464,8 @@ async function browserApply({job,payload,opts}) {
     else console.error('[ats] employer not verified from job page; using generic hiring-team cover letter');
     await debugStep(page, 'after-goto');
     await dismissCookieBanners(page);
-    if (await clickInitialApplyLink(page, payload.ats)) await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||30000}).catch(()=>page.waitForTimeout?.(2000));
-    if (await clickInitialApplyLink(page, payload.ats)) await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||30000}).catch(()=>page.waitForTimeout?.(2000));
+    if (await clickInitialApplyLink(page, payload.ats)) await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||30000}).catch(()=>sleep(3000));
+    if (await clickInitialApplyLink(page, payload.ats)) await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||30000}).catch(()=>sleep(3000));
     const formEmployer = await extractEmployerFromJobPage(page);
     const formRefreshedEmployer = refreshPayloadCoverLetterFromVerifiedEmployer(payload, formEmployer || verifiedEmployer);
     if (formRefreshedEmployer && formRefreshedEmployer !== refreshedEmployer) console.error(`[ats] employer verified from application page: ${formRefreshedEmployer}`);
@@ -1484,7 +1491,7 @@ async function browserApply({job,payload,opts}) {
     if (payload.ats === 'greenhouse') await fillGreenhousePromptDropdowns(page, payload);
     await fillRemainingRequiredFields(page, payload);
     await uploadDocuments(page, {resumePath: payload.resumePath, coverPdfPath: payload.coverPdfPath, photoPath: payload.photoPath});
-    await page.waitForTimeout?.(8000);
+    await sleep(5000);
     await debugStep(page, 'after-upload');
     await fillProfileFieldsByLabel(page, payload);
     await fillAdapterSpecificFields(page, payload);
@@ -1496,7 +1503,7 @@ async function browserApply({job,payload,opts}) {
     if (blockers.includes('captcha')) {
       const solved = await trySolveCaptcha(page).catch(() => false);
       if (solved) {
-        await page.waitForTimeout?.(5000);
+        await sleep(5000);
         blockers = await findBlockers(page);
       }
     }
@@ -1505,12 +1512,15 @@ async function browserApply({job,payload,opts}) {
     if (opts.submit !== true) return {status:'prepared', reason:'submit-not-requested'};
     let beforeUrl = typeof page.url === 'function' ? page.url() : payload.url;
     let clickedAny = false;
-    const maxSubmitSteps = payload.ats === 'workday' ? 12 : 5;
+    const maxSubmitSteps = payload.ats === 'workday' ? 12 : 8;
+    let consecutiveSubmitFails = 0;
     for (let i = 0; i < maxSubmitSteps; i++) {
       const clicked = await clickFinalSubmit(page, payload.ats);
       if (clicked) {
         clickedAny = true;
-        await page.waitForNavigation?.({waitUntil:'networkidle2',timeout:opts.timeoutMs||30000}).catch(()=>page.waitForTimeout?.(30000));
+        consecutiveSubmitFails = 0;
+        // Use SPA-aware waiting: try navigation, fall back to sleep for React-based ATS
+        await page.waitForNavigation?.({waitUntil:'networkidle2',timeout:opts.timeoutMs||30000}).catch(()=>sleep(8000));
         const settleState = await waitForSubmitToSettle(page, opts);
         if (settleState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
         const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
@@ -1518,8 +1528,15 @@ async function browserApply({job,payload,opts}) {
         if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
       } else {
         const progressed = await clickProgressButton(page);
-        if (!progressed) break;
-        await page.waitForNavigation?.({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||15000}).catch(()=>page.waitForTimeout?.(1500));
+        if (!progressed) {
+          consecutiveSubmitFails++;
+          if (consecutiveSubmitFails >= 2) break;
+          await sleep(1500);
+          continue;
+        }
+        consecutiveSubmitFails = 0;
+        // SPA-aware wait after clicking progress/next - critical for React-based ATS (Greenhouse, Lever, Ashby)
+        await page.waitForNavigation?.({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||15000}).catch(()=>sleep(3000));
       }
       await fillProfileFieldsByLabel(page, payload);
       await selectOrFillWorkAuth(page, p.workAuth, p.requiresSponsorship);
@@ -1530,12 +1547,12 @@ async function browserApply({job,payload,opts}) {
       if (payload.ats === 'greenhouse') await fillGreenhousePromptDropdowns(page, payload);
       await fillRemainingRequiredFields(page, payload);
       await uploadDocuments(page, {resumePath: payload.resumePath, coverPdfPath: payload.coverPdfPath, photoPath: payload.photoPath});
-      await page.waitForTimeout?.(4000);
-      await debugStep(page, 'after-submit-loop-refill');
+      await sleep(3000);
+      await debugStep(page, `after-submit-loop-refill-${i}`);
       await fillProfileFieldsByLabel(page, payload);
       blockers = await findBlockers(page);
       if (blockers.some(b => /blocker-check-failed:.*detached Frame/i.test(b))) {
-        await page.waitForTimeout?.(5000);
+        await sleep(5000);
         const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
         if (verifiedState === 'success' || verifiedState === true) return {status:'submitted', reason:'submission-verified'};
         if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};

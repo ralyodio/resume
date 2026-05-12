@@ -33,7 +33,7 @@ const RESULTS_PATH = path.join(ROOT, 'results.jsonl');
 const DEBUG_DIR = path.join(ROOT, 'debug');
 const RESUME_PDF = process.env.RESUME_PDF || path.resolve(process.cwd(), 'anthony.ettinger.resume4.pdf');
 const USER_DATA_DIR = process.env.CHROME_PROFILE || path.join(os.homedir(), '.cache/hermes-linkedin-chrome');
-const CHROME = process.env.CHROME || '/snap/bin/chromium';
+const CHROME = process.env.CHROME || puppeteer.executablePath();
 const MAX_APPLY = Number(process.env.MAX_APPLY || 5);
 const MAX_SCAN = Number(process.env.MAX_SCAN || 40);
 const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true';

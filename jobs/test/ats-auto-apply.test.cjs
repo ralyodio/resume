@@ -433,18 +433,30 @@ test('email apply writes draft in dry-run and does not send without SMTP credent
 
 function fakePuppeteer({blockers=[], clicked=true, verified=true, anchorOnly=false}={}) {
   const state = { launchOptions:null, queries:[], auth:null };
+  const isSuccess = verified === true || verified === 'success';
+  const isSpam = verified === 'spam-blocked';
   const page = {
     url: () => 'https://boards.greenhouse.io/acme/jobs/123',
     goto: async()=>{},
     waitForTimeout: async()=>{},
+    waitForFunction: async()=>{},
+    waitForNavigation: async()=>{},
+    setViewport: async()=>{},
+    setUserAgent: async()=>{},
     authenticate: async(creds)=>{ state.auth=creds; },
     $: async()=>({click:async()=>{},type:async()=>{}}),
-    $$: async()=>[{uploadFile:async()=>{}}],
+    $$: async()=>[{uploadFile:async()=>{},evaluate:async()=>''}],
     evaluate: async(fn, arg)=>{
       const src = String(fn);
       if (src.includes('blockers = []')) return blockers;
+      if (src.includes('errorSelectors') || src.includes('invalid-feedback')) return [];
       if (src.includes("button, input[type=submit]") || src.includes('adapterSpec.selectors')) { state.queries.push('safe-submit-selector'); return anchorOnly ? false : clicked; }
       if (src.includes('application submitted')) return verified;
+      if (src.includes('readyState')) return true;
+      // waitForSubmitToSettle evaluate - return matching success/spam state
+      if (src.includes('submitting') || src.includes('please wait')) return {busy:false, success:isSuccess, spam:isSpam, errors:false};
+      // ensureNonEmptyPage - its evaluate is the shortest innerText check
+      if (src.includes('innerText') && src.length < 100) return 'Apply for Engineer at Acme Corp. First name Last name Email Phone Location Submit Application';
       return null;
     }
   };
@@ -453,7 +465,7 @@ function fakePuppeteer({blockers=[], clicked=true, verified=true, anchorOnly=fal
 
 test('browserApply does not use sandbox-disabling args by default and verifies submission success',async()=>{
   const {state,puppeteer}=fakePuppeteer({verified:true});
-  const result=await browserApply({job:{id:'b1'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
+  const result=await browserApply({job:{id:'b1'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true,verifyAttempts:1,verifyDelayMs:10,verifyInitialDelayMs:10,submitSettleMs:10}});
   assert.equal(result.status,'submitted');
   assert.equal(result.reason,'submission-verified');
   assert.deepEqual(state.launchOptions.args,['--disable-dev-shm-usage']);
@@ -465,7 +477,7 @@ test('browserApply configures Chromium proxy and authenticates when PROXY_URL is
   const oldProxy=process.env.PROXY_URL;
   process.env.PROXY_URL='http://user%40name:pa%24%24@proxy.example:8080';
   try {
-    const result=await browserApply({job:{id:'b1p'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
+    const result=await browserApply({job:{id:'b1p'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true,verifyAttempts:1,verifyDelayMs:10,verifyInitialDelayMs:10,submitSettleMs:10}});
     assert.equal(result.status,'submitted');
     assert.ok(state.launchOptions.args.includes('--proxy-server=http://proxy.example:8080'));
     assert.deepEqual(state.auth,{username:'user@name',password:'pa$$'});
@@ -476,7 +488,7 @@ test('browserApply configures Chromium proxy and authenticates when PROXY_URL is
 
 test('browserApply returns needs-human-review when click is not verified',async()=>{
   const {puppeteer}=fakePuppeteer({verified:false});
-  const result=await browserApply({job:{id:'b2'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
+  const result=await browserApply({job:{id:'b2'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true,verifyAttempts:1,verifyDelayMs:10,verifyInitialDelayMs:10,submitSettleMs:10}});
   assert.equal(result.status,'needs-human-review');
   assert.match(result.reason,/submission-unverified/);
 });
@@ -504,7 +516,7 @@ test('browserApply classifies Ashby spam-blocked responses as needs-human-review
 
 test('browserApply blocks visible captcha/login/unknown-required before submit',async()=>{
   const {puppeteer}=fakePuppeteer({blockers:['captcha','unknown-required:visa sponsorship']});
-  const result=await browserApply({job:{id:'b3'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
+  const result=await browserApply({job:{id:'b3'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true,verifyAttempts:1,verifyDelayMs:10,verifyInitialDelayMs:10,submitSettleMs:10}});
   assert.equal(result.status,'needs-human-review');
   assert.match(result.reason,/captcha/);
 });
@@ -720,7 +732,7 @@ test('clickFinalSubmit clicks ApplyToJob/JazzHR submit anchor by stable id', asy
 
 test('browserApply does not click anchors as final submit controls',async()=>{
   const {puppeteer}=fakePuppeteer({anchorOnly:true});
-  const result=await browserApply({job:{id:'b4'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true}});
+  const result=await browserApply({job:{id:'b4'},payload:buildApplicationPayload({applyUrl:'https://boards.greenhouse.io/acme/jobs/123'}),opts:{puppeteer,submit:true,verifyAttempts:1,verifyDelayMs:10,verifyInitialDelayMs:10,submitSettleMs:10}});
   assert.equal(result.status,'needs-human-review');
   assert.match(result.reason,/submit-button-not-found/);
 });
