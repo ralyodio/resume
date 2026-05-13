@@ -1285,6 +1285,138 @@ async function maybeHoldVisibleBrowserAfterSubmit(page, clickedAny, result) {
     await page.waitForTimeout?.(holdMs);
   }
 }
+function manualHandoffEnabled(opts={}) {
+  return opts.manualHandoff === true || process.env.HERMES_MANUAL_HANDOFF === '1';
+}
+function safeJobId(id='job') {
+  return String(id || 'job').replace(/[^a-zA-Z0-9_.-]+/g,'_').slice(0,100) || 'job';
+}
+async function collectManualHandoffSnapshot(page) {
+  const url = typeof page.url === 'function' ? page.url() : '';
+  const dom = await page.evaluate(() => {
+    const text = (document.body?.innerText || '').replace(/\s+/g,' ').trim().slice(0,6000);
+    const visible = el => {
+      const r = el.getBoundingClientRect?.();
+      const s = getComputedStyle(el);
+      return !!r && r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+    };
+    const labelFor = el => {
+      const id = el.id;
+      const labels = [];
+      if (el.labels) for (const l of Array.from(el.labels)) labels.push(l.innerText || l.textContent || '');
+      if (id && window.CSS?.escape) {
+        const direct = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+        if (direct) labels.push(direct.innerText || direct.textContent || '');
+      }
+      const parent = el.closest?.('label,[role=group],fieldset,.field,.form-group,.application-question');
+      if (parent) labels.push((parent.innerText || parent.textContent || '').slice(0,300));
+      return labels.map(s => String(s || '').replace(/\s+/g,' ').trim()).filter(Boolean)[0] || '';
+    };
+    const controls = Array.from(document.querySelectorAll('input, textarea, select, button, a, [role="button"], [role="radio"], [role="checkbox"], [role="option"]'))
+      .filter(visible)
+      .slice(0,250)
+      .map((el, index) => ({
+        index,
+        tag: el.tagName?.toLowerCase(),
+        type: el.getAttribute('type') || el.getAttribute('role') || '',
+        name: el.getAttribute('name') || '',
+        id: el.id || '',
+        label: labelFor(el),
+        text: String(el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || '').replace(/\s+/g,' ').trim().slice(0,300),
+        required: !!el.required || el.getAttribute('aria-required') === 'true',
+        checked: !!el.checked || el.getAttribute('aria-checked') === 'true',
+        value: /password|token|secret/i.test(el.getAttribute('name') || el.id || '') ? '[REDACTED]' : String(el.value || '').slice(0,300),
+        href: el.href || ''
+      }));
+    const events = Array.isArray(window.__hermesManualEvents) ? window.__hermesManualEvents.slice(-300) : [];
+    return { title: document.title || '', text, controls, events };
+  }).catch(err => ({error: err.message, text:'', controls:[], events:[]}));
+  return {url, capturedAt:new Date().toISOString(), ...dom};
+}
+async function installManualEventRecorder(page) {
+  await page.evaluate(() => {
+    if (window.__hermesManualRecorderInstalled) return;
+    window.__hermesManualRecorderInstalled = true;
+    window.__hermesManualEvents = window.__hermesManualEvents || [];
+    const visibleLabel = el => {
+      if (!el) return '';
+      const parts = [el.innerText, el.value, el.getAttribute?.('aria-label'), el.getAttribute?.('placeholder'), el.name, el.id].filter(Boolean);
+      const parent = el.closest?.('label,[role=group],fieldset,.field,.form-group,.application-question');
+      if (parent) parts.push(parent.innerText || parent.textContent || '');
+      return String(parts.find(Boolean) || '').replace(/\s+/g,' ').trim().slice(0,300);
+    };
+    const record = (eventName, target) => {
+      try {
+        const el = target?.closest?.('input, textarea, select, button, a, [role="button"], [role="radio"], [role="checkbox"], [role="option"]') || target;
+        if (!el) return;
+        window.__hermesManualEvents.push({
+          ts: new Date().toISOString(), event: eventName,
+          tag: el.tagName?.toLowerCase(), type: el.getAttribute?.('type') || el.getAttribute?.('role') || '',
+          name: el.getAttribute?.('name') || '', id: el.id || '', label: visibleLabel(el),
+          checked: !!el.checked || el.getAttribute?.('aria-checked') === 'true',
+          value: /password|token|secret/i.test(el.getAttribute?.('name') || el.id || '') ? '[REDACTED]' : String(el.value || '').slice(0,300),
+          href: el.href || '', url: location.href
+        });
+        if (window.__hermesManualEvents.length > 1000) window.__hermesManualEvents.splice(0, window.__hermesManualEvents.length - 1000);
+      } catch {}
+    };
+    for (const ev of ['click','input','change','submit']) document.addEventListener(ev, e => record(ev, e.target), true);
+  }).catch(()=>{});
+}
+async function saveManualHandoffSnapshot({page, job={}, payload={}, stage, reason, opts={}, suffix}) {
+  const root = opts.manualHandoffDir || process.env.HERMES_MANUAL_HANDOFF_DIR || path.join(process.env.TMPDIR || '/tmp', 'hermes-ats-handoff');
+  fs.mkdirSync(root, {recursive:true});
+  const base = `${new Date().toISOString().replace(/[:.]/g,'-')}-${safeJobId(job.id)}-${suffix || stage}`;
+  const snapshot = await collectManualHandoffSnapshot(page);
+  const out = {stage, reason, job:{id:job.id,title:job.title,company:job.company}, ats:payload.ats, applyUrl:payload.url, ...snapshot};
+  const jsonPath = path.join(root, `${base}.json`);
+  fs.writeFileSync(jsonPath, JSON.stringify(out, null, 2));
+  if (typeof page.screenshot === 'function') await page.screenshot({path:path.join(root, `${base}.png`), fullPage:true}).catch(()=>{});
+  return jsonPath;
+}
+async function manualHandoff({page, job={}, payload={}, stage, reason, opts={}}) {
+  if (!manualHandoffEnabled(opts)) return null;
+  await installManualEventRecorder(page);
+  const beforePath = await saveManualHandoffSnapshot({page, job, payload, stage, reason, opts, suffix:'before'});
+  const doneFile = opts.manualHandoffDoneFile || process.env.HERMES_MANUAL_HANDOFF_DONE_FILE || '';
+  const timeoutMs = Number(opts.manualHandoffTimeoutMs || process.env.HERMES_MANUAL_HANDOFF_TIMEOUT_MS || 900000);
+  const pollMs = Number(opts.manualHandoffPollMs || process.env.HERMES_MANUAL_HANDOFF_POLL_MS || 5000);
+  console.error(`\nMANUAL_HANDOFF\tjob=${job.id||''}\tats=${payload.ats||''}\tstage=${stage}\treason=${reason}`);
+  console.error(`MANUAL_HANDOFF_URL\t${typeof page.url === 'function' ? page.url() : payload.url}`);
+  console.error(`MANUAL_HANDOFF_SNAPSHOT_BEFORE\t${beforePath}`);
+  console.error(`MANUAL_HANDOFF_ACTION\tFix the visible browser. I am recording DOM events and will resume automatically when success/blockers clear${doneFile ? ` or when ${doneFile} exists` : ''}.`);
+  const started = Date.now();
+  let lastBlockers = [];
+  while (Date.now() - started < timeoutMs) {
+    await sleep(pollMs);
+    await installManualEventRecorder(page);
+    if (doneFile && fs.existsSync(doneFile)) {
+      const afterPath = await saveManualHandoffSnapshot({page, job, payload, stage, reason:'done-file', opts, suffix:'after'});
+      console.error(`MANUAL_HANDOFF_SNAPSHOT_AFTER\t${afterPath}`);
+      return {action:'proceed', reason:'manual-done-file'};
+    }
+    const verified = await waitForVerifiedSubmission(page, payload.url, {...opts, verifyAttempts:1, verifyDelayMs:10, verifyInitialDelayMs:10});
+    if (verified === 'success' || verified === true) {
+      const afterPath = await saveManualHandoffSnapshot({page, job, payload, stage, reason:'manual-submission-verified', opts, suffix:'after'});
+      console.error(`MANUAL_HANDOFF_SNAPSHOT_AFTER\t${afterPath}`);
+      return {status:'submitted', reason:'manual-submission-verified'};
+    }
+    if (verified === 'spam-blocked') {
+      const afterPath = await saveManualHandoffSnapshot({page, job, payload, stage, reason:'spam-blocked', opts, suffix:'after'});
+      console.error(`MANUAL_HANDOFF_SNAPSHOT_AFTER\t${afterPath}`);
+      return {status:'needs-human-review', reason:'spam-blocked'};
+    }
+    lastBlockers = await findBlockers(page).catch(err => [`blocker-check-failed:${err.message}`]);
+    if (!lastBlockers.length) {
+      const afterPath = await saveManualHandoffSnapshot({page, job, payload, stage, reason:'blockers-cleared', opts, suffix:'after'});
+      console.error(`MANUAL_HANDOFF_SNAPSHOT_AFTER\t${afterPath}`);
+      return {action:'proceed', reason:'manual-blockers-cleared'};
+    }
+  }
+  const afterPath = await saveManualHandoffSnapshot({page, job, payload, stage, reason:'timeout', opts, suffix:'after'});
+  console.error(`MANUAL_HANDOFF_SNAPSHOT_AFTER\t${afterPath}`);
+  return {status:'needs-human-review', reason:`manual-handoff-timeout:${lastBlockers.join(';') || reason}`};
+}
 async function detectCaptchaInfo(page) {
   return page.evaluate(() => {
     // hCaptcha iframe
@@ -1508,8 +1640,19 @@ async function browserApply({job,payload,opts}) {
         blockers = await findBlockers(page);
       }
     }
-    if (blockers.includes('captcha')) return {status:'needs-human-review', reason:'captcha-unsolved'};
-    if (blockers.length) return {status:'needs-human-review', reason:blockers.join(';')};
+    if (blockers.includes('captcha')) {
+      const handoff = await manualHandoff({page, job, payload, stage:'pre-submit-blockers', reason:'captcha-unsolved', opts});
+      if (handoff?.status) return handoff;
+      if (handoff?.action === 'proceed') blockers = await findBlockers(page);
+      if (blockers.includes('captcha')) return {status:'needs-human-review', reason:'captcha-unsolved'};
+    }
+    if (blockers.length) {
+      const reason = blockers.join(';');
+      const handoff = await manualHandoff({page, job, payload, stage:'pre-submit-blockers', reason, opts});
+      if (handoff?.status) return handoff;
+      if (handoff?.action === 'proceed') blockers = await findBlockers(page);
+      if (blockers.length) return {status:'needs-human-review', reason:blockers.join(';')};
+    }
     if (opts.submit !== true) return {status:'prepared', reason:'submit-not-requested'};
     let beforeUrl = typeof page.url === 'function' ? page.url() : payload.url;
     let clickedAny = false;
@@ -1559,18 +1702,46 @@ async function browserApply({job,payload,opts}) {
         if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
         continue;
       }
-      if (blockers.includes('captcha')) return {status:'needs-human-review', reason:'captcha-unsolved'};
-      if (blockers.length) return {status:'needs-human-review', reason:blockers.join(';')};
+      if (blockers.includes('captcha')) {
+        const handoff = await manualHandoff({page, job, payload, stage:'submit-loop-blockers', reason:'captcha-unsolved', opts});
+        if (handoff?.status) return handoff;
+        if (handoff?.action === 'proceed') blockers = await findBlockers(page);
+        if (blockers.includes('captcha')) return {status:'needs-human-review', reason:'captcha-unsolved'};
+      }
+      if (blockers.length) {
+        const reason = blockers.join(';');
+        const handoff = await manualHandoff({page, job, payload, stage:'submit-loop-blockers', reason, opts});
+        if (handoff?.status) return handoff;
+        if (handoff?.action === 'proceed') blockers = await findBlockers(page);
+        if (blockers.length) return {status:'needs-human-review', reason:blockers.join(';')};
+      }
       const currentUrl = typeof page.url === 'function' ? page.url() : beforeUrl;
       if (currentUrl !== beforeUrl) beforeUrl = currentUrl;
     }
-    if (!clickedAny) return {status:'needs-human-review', reason:`submit-button-not-found:${await submitDiagnostics(page)}`};
+    if (!clickedAny) {
+      const reason = `submit-button-not-found:${await submitDiagnostics(page)}`;
+      const handoff = await manualHandoff({page, job, payload, stage:'submit-button-not-found', reason, opts});
+      if (handoff?.status) return handoff;
+      if (handoff?.action === 'proceed') {
+        const clicked = await clickFinalSubmit(page, payload.ats);
+        if (clicked) {
+          clickedAny = true;
+          await page.waitForNavigation?.({waitUntil:'networkidle2',timeout:opts.timeoutMs||30000}).catch(()=>sleep(8000));
+          const verifiedAfterManual = await waitForVerifiedSubmission(page, beforeUrl, opts);
+          if (verifiedAfterManual === 'success' || verifiedAfterManual === true) return {status:'submitted', reason:'manual-handoff-then-submission-verified'};
+          if (verifiedAfterManual === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
+        }
+      }
+      if (!clickedAny) return {status:'needs-human-review', reason};
+    }
     const settleState = await waitForSubmitToSettle(page, opts);
     if (settleState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
     const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
     if (verifiedState === 'success' || verifiedState === true) return {status:'submitted', reason:'submission-verified'};
     if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
     const unverifiedResult = {status:'needs-human-review', reason:`submission-unverified:${await submitDiagnostics(page)}`};
+    const handoff = await manualHandoff({page, job, payload, stage:'submission-unverified', reason:unverifiedResult.reason, opts});
+    if (handoff?.status) return handoff;
     await maybeHoldVisibleBrowserAfterSubmit(page, clickedAny, unverifiedResult);
     return unverifiedResult;
   } finally {
@@ -1605,8 +1776,8 @@ async function autoApplyExternal({job = {}, dryRun = true, submit = false, store
     }
   }
   if (dryRun || opts.dryTest || process.env.HERMES_ATS_DRY_TEST === '1') return {...base, status:'prepared', reason:'dry-run'};
-  const result = await browserApply({job,payload,opts:{...opts,submit}});
+  const result = await browserApply({job,payload,opts:{...opts,submit,storeDir}});
   return {...base, ...result};
 }
 
-module.exports = { RESUME4_PATH, COVER4_PATH, PHOTO_PATH, ATS_ADAPTERS, getAtsAdapter, detectAts, buildApplicationPayload, canAutoSubmit, classifyScreeningAnswer, extractAtsApplyUrlFromHtml, resolveAggregatorApplyUrl, autoApplyExternal, browserApply, findBlockers, fillAdapterSpecificFields, choosePromptDropdown, clickInitialApplyLink, clickProgressButton, clickFinalSubmit, companyFromJobPageData, refreshPayloadCoverLetterFromVerifiedEmployer, extractEmployerFromJobPage };
+module.exports = { RESUME4_PATH, COVER4_PATH, PHOTO_PATH, ATS_ADAPTERS, getAtsAdapter, detectAts, buildApplicationPayload, canAutoSubmit, classifyScreeningAnswer, extractAtsApplyUrlFromHtml, resolveAggregatorApplyUrl, autoApplyExternal, browserApply, findBlockers, fillAdapterSpecificFields, choosePromptDropdown, clickInitialApplyLink, clickProgressButton, clickFinalSubmit, companyFromJobPageData, refreshPayloadCoverLetterFromVerifiedEmployer, extractEmployerFromJobPage, collectManualHandoffSnapshot, installManualEventRecorder, manualHandoffEnabled };

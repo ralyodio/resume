@@ -24,7 +24,10 @@ const {
   choosePromptDropdown,
   classifyScreeningAnswer,
   companyFromJobPageData,
-  refreshPayloadCoverLetterFromVerifiedEmployer
+  refreshPayloadCoverLetterFromVerifiedEmployer,
+  collectManualHandoffSnapshot,
+  installManualEventRecorder,
+  manualHandoffEnabled
 }=require('../src/apply/ats-auto-apply.cjs');
 const { openExternalApplication } = require('../src/apply/open-external.cjs');
 
@@ -463,6 +466,35 @@ function fakePuppeteer({blockers=[], clicked=true, verified=true, anchorOnly=fal
   };
   return {state, puppeteer:{launch:async(options)=>{ state.launchOptions=options; return {newPage:async()=>page, close:async()=>{}}; }}};
 }
+
+test('manual handoff helpers are env/option gated and snapshot page state',async()=>{
+  const old = process.env.HERMES_MANUAL_HANDOFF;
+  try {
+    delete process.env.HERMES_MANUAL_HANDOFF;
+    assert.equal(manualHandoffEnabled(), false);
+    assert.equal(manualHandoffEnabled({manualHandoff:true}), true);
+    process.env.HERMES_MANUAL_HANDOFF='1';
+    assert.equal(manualHandoffEnabled(), true);
+  } finally {
+    if (old === undefined) delete process.env.HERMES_MANUAL_HANDOFF; else process.env.HERMES_MANUAL_HANDOFF = old;
+  }
+  let recorderInstalled = false;
+  const page = {
+    url: ()=>'https://jobs.example/apply',
+    evaluate: async(fn)=>{
+      const src=String(fn);
+      if (src.includes('__hermesManualRecorderInstalled')) { recorderInstalled = true; return; }
+      if (src.includes('document.body?.innerText')) return {title:'Apply', text:'Question text', controls:[{tag:'button', text:'Submit Application'}], events:[{event:'click', label:'Continue'}]};
+      return null;
+    }
+  };
+  await installManualEventRecorder(page);
+  assert.equal(recorderInstalled, true);
+  const snap = await collectManualHandoffSnapshot(page);
+  assert.equal(snap.url, 'https://jobs.example/apply');
+  assert.equal(snap.controls[0].text, 'Submit Application');
+  assert.equal(snap.events[0].event, 'click');
+});
 
 test('browserApply does not use sandbox-disabling args by default and verifies submission success',async()=>{
   const {state,puppeteer}=fakePuppeteer({verified:true});
