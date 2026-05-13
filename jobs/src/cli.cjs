@@ -41,20 +41,42 @@ Usage:
   node src/cli.cjs blacklist keyword "clearance required"
 
 Commands include jobs search, jobs score, jobs queue, jobs review, jobs approve, jobs skip, jobs apply, jobs rotate.
-External apply supports conservative auto-apply for Greenhouse, Lever, Ashby, Workable, SmartRecruiters, and mailto email drafts; live external ATS submission requires --run-live --confirm-live-external-apply and still submits only when common fields are filled and no captcha/login/unknown required questions are detected.`); }
+External apply supports conservative auto-apply for Greenhouse, Lever, Ashby, Workable, Rippling, SmartRecruiters, and mailto email drafts; live external ATS submission requires --run-live --confirm-live-external-apply and still submits only when common fields are filled and no captcha/login/unknown required questions are detected.`); }
 function parse(argv){ const out={_:[]}; for(let i=0;i<argv.length;i++){ const a=argv[i]; if(a.startsWith('--')){ const k=a.slice(2); const v=argv[i+1]&&!argv[i+1].startsWith('--')?argv[++i]:true; out[k]=v; } else out._.push(a); } return out; }
 
-async function searchSources({store,args,sourceIds}) {
+async function searchSources({store,args,sourceIds,deps={}}) {
+  const getSourceImpl = deps.getSource || getSource;
+  const listSourcesImpl = deps.listSources || listSources;
+  const assertSourceAdapterImpl = deps.assertSourceAdapter || assertSourceAdapter;
+  const log = deps.log || console.log;
+  const warn = deps.warn || console.error;
+  const shouldFallbackValueSerp = (id, err) => id === 'valueserp-ats' && /\b402\b.*payment required|payment required.*\b402\b/i.test(String(err && err.message || err || ''));
+  const fallbackIds = () => {
+    const explicit = String(process.env.HERMES_VALUESERP_FALLBACK_SOURCES || 'remotive,themuse,builtin,web3-career,arbeitnow,jobicy,cryptocurrencyjobs,laborx').split(',').map(s=>s.trim()).filter(Boolean);
+    const allowed = new Set(listSourcesImpl().filter(s=>!s.legacyScript && !s.supportsNativeApply && s.id!=='valueserp-ats').map(s=>s.id));
+    return explicit.filter(id=>allowed.has(id));
+  };
   let count=0;
-  for(const id of sourceIds){
+  const attempted = new Set();
+  async function runSource(id) {
+    if (attempted.has(id)) return;
+    attempted.add(id);
     try {
-      const adapter=getSource(id); assertSourceAdapter(adapter);
+      const adapter=getSourceImpl(id); assertSourceAdapterImpl(adapter);
       const jobs=await adapter.searchJobs({query:args.query||'', remoteOnly:true, since:args.since||'7d', limit:Number(args.limit||25), ats:args.ats, maxPages:args['max-pages']||args.maxPages, location:args.location});
-      for(const job of jobs){ store.upsert(job,'search-result'); count++; console.log(`${job.source}\t${job.title}\t${job.company}\t${job.sourceUrl}`); }
+      for(const job of jobs){ store.upsert(job,'search-result'); count++; log(`${job.source}\t${job.title}\t${job.company}\t${job.sourceUrl}`); }
     } catch (err) {
-      console.error(`source failed\t${id}\t${err.message}`);
+      warn(`source failed\t${id}\t${err.message}`);
+      if (shouldFallbackValueSerp(id, err)) {
+        const fallbacks = fallbackIds();
+        if (fallbacks.length) {
+          warn(`source fallback\t${id}\t${fallbacks.join(',')}`);
+          for (const fallbackId of fallbacks) await runSource(fallbackId);
+        }
+      }
     }
   }
+  for(const id of sourceIds) await runSource(id);
   return count;
 }
 function scoreNew(store){ let n=0; for(const job of store.all().filter(j=>j.status==='new')){ const s=scoreJob(job); store.upsert({...job,...s,status:'scored'},'score'); n++; console.log(`${s.score}\t${s.decision}\t${job.title}\t${job.company}\t${s.reasons.join('; ')}`); } return n; }
@@ -100,4 +122,5 @@ async function main(argv=process.argv.slice(2)){ const args=parse(argv); if(!arg
     return;
   }
   help(); }
-main().catch(err=>{ console.error(err.stack||err.message); process.exit(1); });
+if (require.main === module) main().catch(err=>{ console.error(err.stack||err.message); process.exit(1); });
+module.exports = { parse, searchSources, scoreNew, queueScored, runEasyApplyRotation, main };

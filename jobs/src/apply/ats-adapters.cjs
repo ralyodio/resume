@@ -62,6 +62,14 @@ const ATS_ADAPTERS = {
     finalSubmitSelectors: ['button[type=submit]', 'button'],
     finalSubmitTexts: [/^submit application$/i, /^submit$/i],
   },
+  rippling: {
+    id: 'rippling',
+    name: 'Rippling',
+    initialApplyTexts: [/^apply now$/i, /^apply$/i],
+    finalSubmitSelectors: ['button[type=submit]', 'button'],
+    finalSubmitTexts: [/^apply$/i, /^submit application$/i, /^submit$/i],
+    successTexts: [/you have successfully applied/i, /successfully applied/i],
+  },
   icims: {
     id: 'icims',
     name: 'iCIMS',

@@ -18,6 +18,7 @@ const ATS_TARGETS = [
   { id:'recruiterbox', host:'recruiterbox.com' },
   { id:'ashby', host:'jobs.ashbyhq.com' },
   { id:'workable', host:'apply.workable.com' },
+  { id:'rippling', host:'ats.rippling.com' },
   { id:'email', host:null, rawQuery:'("mailto:" OR "email your resume") "remote" "software engineer"' },
 ];
 
@@ -71,7 +72,7 @@ function buildValueSerpUrl({apiKey='VALUE_SERP_API_KEY', host, query='', page=1,
 function organicResults(payload){ return Array.isArray(payload && payload.organic_results) ? payload.organic_results : []; }
 function canonicalUrl(u){ try{ const x=new URL(u); x.hash=''; return x.toString(); }catch{return u||'';} }
 function urlSlug(u){ return Buffer.from(canonicalUrl(u)).toString('base64url').slice(0,48); }
-const ATS_PLATFORM_NAMES = new Set(['lever','greenhouse','workday','smartrecruiters','bamboohr','applytojob','breezy','icims','jobvite','recruiterbox','ashby','workable','boards','jobs','apply']);
+const ATS_PLATFORM_NAMES = new Set(['lever','greenhouse','workday','smartrecruiters','bamboohr','applytojob','breezy','icims','jobvite','recruiterbox','ashby','workable','rippling','boards','jobs','apply']);
 function titleCaseCompany(s){
   return String(s||'').replace(/\.[a-z]{2,}$/i,'').replace(/[_+]+/g,' ').replace(/-/g,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).map(w=>{
     if (/^[A-Z0-9]{2,}$/.test(w)) return w;
@@ -101,6 +102,7 @@ function companyFromAtsUrl(link,target={}){
     case 'lever': slug=parts[0]; break;
     case 'ashby': slug=parts[0]; break;
     case 'workable': slug=parts[0]; break;
+    case 'rippling': slug=/^[a-z]{2}(?:-[A-Z]{2})?$/i.test(parts[0]||'') ? parts[1] : parts[0]; break;
     case 'smartrecruiters': slug=parts[0]; break;
     case 'bamboohr': slug=hostParts[0]; break;
     case 'applytojob': slug=hostParts[0]; break;
@@ -144,6 +146,7 @@ function isLikelyJobPostingUrl(link, target={}){
     case 'recruiterbox': return /\/jobs\/[^/]+/i.test(p) && !/^\/jobs$/i.test(p);
     case 'ashby': return /^\/[^/]+\/[0-9a-f-]{20,}(?:\/application)?$/i.test(p);
     case 'workable': return /^\/[^/]+\/j\/[a-z0-9]+(?:\/apply)?\/?$/i.test(p);
+    case 'rippling': return /^(?:\/[a-z]{2}(?:-[A-Z]{2})?)?\/[^/]+\/jobs\/[0-9a-f-]{20,}\/?$/i.test(p);
     default: return true;
   }
 }
@@ -212,7 +215,7 @@ const source={
   supportsExternalApply:true,
   supportsEasyApply:false,
   reviewOnly:true,
-  tags:['remote','software','aggregator','ats','greenhouse','lever','ashby','workable','smartrecruiters']
+  tags:['remote','software','aggregator','ats','greenhouse','lever','ashby','workable','rippling','smartrecruiters']
 };
 function buildSearchUrl(opts={}){ return buildValueSerpUrl({host:(opts.host||ATS_TARGETS[0].host), query:opts.query||'', page:Number(opts.page||1), apiKey:'VALUE_SERP_API_KEY', remoteOnly:opts.remoteOnly!==false, usaOnly: opts.usaOnly ?? getUsOnly()}); }
 async function searchJobs(opts={}){

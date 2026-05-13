@@ -9,7 +9,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const RESUME4_PATH = process.env.RESUME_PDF || path.join(REPO_ROOT, 'anthony.ettinger.resume4.pdf');
 const COVER4_PATH = process.env.COVER_PDF || path.join(REPO_ROOT, 'anthony.ettinger.cover4.pdf');
 const PHOTO_PATH = process.env.PHOTO_PATH || path.join(REPO_ROOT, 'anthony.ettinger.photo.jpeg');
-const SUPPORTED_ATS = new Set(['greenhouse','lever','ashby','workable','smartrecruiters','workday','bamboohr','applytojob','breezy','icims','jobvite','recruiterbox','email']);
+const SUPPORTED_ATS = new Set(['greenhouse','lever','ashby','workable','rippling','smartrecruiters','workday','bamboohr','applytojob','breezy','icims','jobvite','recruiterbox','email']);
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function safeUrl(url) { try { return new URL(String(url || '')); } catch { return null; } }
@@ -23,6 +23,7 @@ function detectAts(url) {
   if (hostIs('lever.co')) return 'lever';
   if (hostIs('ashbyhq.com')) return 'ashby';
   if (hostIs('workable.com')) return 'workable';
+  if (hostIs('ats.rippling.com')) return 'rippling';
   if (hostIs('smartrecruiters.com')) return 'smartrecruiters';
   if (hostIs('myworkdayjobs.com') || host.endsWith('.myworkdayjobs.com')) return 'workday';
   if (hostIs('bamboohr.com')) return 'bamboohr';
@@ -201,7 +202,7 @@ function cleanEmployerCandidate(s) {
     .replace(/\s+(?:careers?|jobs?|team)$/i,'')
     .trim();
   if(!out || out.length<2 || out.length>80) return '';
-  if(/^(lever|greenhouse|ashby|workable|breezy|workday|jobvite|icims|smartrecruiters|apply)$/i.test(out)) return '';
+  if(/^(lever|greenhouse|ashby|workable|rippling|breezy|workday|jobvite|icims|smartrecruiters|apply)$/i.test(out)) return '';
   if(/^(?:company\s+website|company|website|careers?|jobs?|job\s+board|job\s+posting|application|hiring\s+team|recruiting\s+team|talent\s+team)$/i.test(out)) return '';
   return out;
 }

@@ -31,7 +31,7 @@ test('builds ValueSERP URL with site query, location, and page',()=>{
 
 test('remote-only searches add remote term and all ATS targets are covered',()=>{
   assert.deepEqual(valueserp.ATS_TARGETS.map(t=>t.host),[
-    'jobs.lever.co','boards.greenhouse.io','myworkdayjobs.com','jobs.smartrecruiters.com','bamboohr.com','applytojob.com','breezy.hr','icims.com','jobs.jobvite.com','recruiterbox.com','jobs.ashbyhq.com','apply.workable.com',null
+    'jobs.lever.co','boards.greenhouse.io','myworkdayjobs.com','jobs.smartrecruiters.com','bamboohr.com','applytojob.com','breezy.hr','icims.com','jobs.jobvite.com','recruiterbox.com','jobs.ashbyhq.com','apply.workable.com','ats.rippling.com',null
   ]);
   assert.equal(valueserp.buildGoogleQuery({host:'jobs.lever.co',query:'claude',remoteOnly:true}),'site:jobs.lever.co "claude" remote');
 });
@@ -77,7 +77,8 @@ test('extracts the actual employer instead of the ATS platform name',()=>{
     [{id:'breezy',host:'breezy.hr'}, 'https://cardahealth.breezy.hr/p/95e9f2e27554-full-stack-ai-engineer', 'Full Stack AI Engineer - Carda Health', 'Carda Health'],
     [{id:'greenhouse',host:'boards.greenhouse.io'}, 'https://boards.greenhouse.io/gitlab/jobs/8517564002', 'Job Application for AI Engineer at GitLab', 'GitLab'],
     [{id:'lever',host:'jobs.lever.co'}, 'https://jobs.lever.co/distro/24605ee3-5747-4fbf-820b-c83913f64755', 'SOFTWARE DEVELOPER - Distro', 'Distro'],
-    [{id:'ashby',host:'jobs.ashbyhq.com'}, 'https://jobs.ashbyhq.com/sweedpos.com/b2335d86-ace5-4773-acf4-3d5c89c2a008', 'AI Engineer @ Sweed', 'Sweed']
+    [{id:'ashby',host:'jobs.ashbyhq.com'}, 'https://jobs.ashbyhq.com/sweedpos.com/b2335d86-ace5-4773-acf4-3d5c89c2a008', 'AI Engineer @ Sweed', 'Sweed'],
+    [{id:'rippling',host:'ats.rippling.com'}, 'https://ats.rippling.com/subquadratic/jobs/c1a5017a-5b61-4c8f-a301-cae72eeb5459', 'Founding Developer Advocate - Subquadratic', 'Subquadratic']
   ];
   for (const [target,link,title,expected] of cases) {
     const job=valueserp.resultToJob({position:1,title,link,displayed_link:link,snippet:'Remote software engineering role.'},{target,query:'AI Engineer',remoteOnly:true,usaOnly:false});
@@ -112,6 +113,7 @@ test('rejects ATS board roots, search pages, and share links that are not job ap
     ['jobvite','jobs.jobvite.com','https://jobs.jobvite.com/pulsepoint/search?c=Technology&p=0'],
     ['workable','apply.workable.com','https://apply.workable.com/opendatajobs'],
     ['ashby','jobs.ashbyhq.com','https://jobs.ashbyhq.com/OurRitual'],
+    ['rippling','ats.rippling.com','https://ats.rippling.com/subquadratic/jobs'],
     ['bamboohr','bamboohr.com','https://www.bamboohr.com/job-description/software-development-intern']
   ];
   for (const [id,host,link] of cases) {

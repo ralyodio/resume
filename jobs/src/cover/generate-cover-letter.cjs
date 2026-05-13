@@ -1,4 +1,4 @@
-const ATS_PLATFORM_NAMES = new Set(['lever','greenhouse','workday','smartrecruiters','bamboohr','applytojob','breezy','icims','jobvite','recruiterbox','ashby','workable','boards','jobs','apply']);
+const ATS_PLATFORM_NAMES = new Set(['lever','greenhouse','workday','smartrecruiters','bamboohr','applytojob','breezy','icims','jobvite','recruiterbox','ashby','workable','rippling','boards','jobs','apply']);
 const GENERIC_EMPLOYER_NAMES = /^(?:company\s+website|company|website|careers?|jobs?|job\s+board|job\s+posting|apply|application|hiring\s+team|recruiting\s+team|talent\s+team)$/i;
 
 function employerName(job={}){

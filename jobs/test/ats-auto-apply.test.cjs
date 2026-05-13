@@ -308,6 +308,7 @@ test('detectAts identifies supported ATS and email URLs',()=>{
   assert.equal(detectAts('https://jobs.lever.co/acme/abc'), 'lever');
   assert.equal(detectAts('https://jobs.ashbyhq.com/acme/abc'), 'ashby');
   assert.equal(detectAts('https://apply.workable.com/acme/j/ABC/'), 'workable');
+  assert.equal(detectAts('https://ats.rippling.com/subquadratic/jobs/c1a5017a-5b61-4c8f-a301-cae72eeb5459'), 'rippling');
   assert.equal(detectAts('https://jobs.smartrecruiters.com/Foo/123'), 'smartrecruiters');
   assert.equal(detectAts('https://foo.wd5.myworkdayjobs.com/en-US/jobs/job/123'), 'workday');
   assert.equal(detectAts('https://company.bamboohr.com/careers/123'), 'bamboohr');
