@@ -199,6 +199,33 @@ test('adapter-specific filler handles Greenhouse hidden radios and required ackn
   assert.equal(phone.value, '5551234567');
 });
 
+test('adapter-specific filler handles EdReports Greenhouse AI and DBIE long-answer prompts', async () => {
+  const ai = { tagName:'TEXTAREA', type:'', id:'question_11982539007', value:'', disabled:false, readOnly:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:(n)=> n === 'aria-label' ? 'Describe a recent project where you applied AI (e.g., LLMs or retrieval systems) in a production or near-production setting. What problem were you solving, what was your approach (including system design, data handling, and prompt or model strategy), and what was your specific contribution?' : '', dispatchEvent:()=>{} };
+  const dbie = { tagName:'TEXTAREA', type:'', id:'question_11980925007', value:'', disabled:false, readOnly:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:(n)=> n === 'aria-label' ? 'Share a specific example of a time when your learning around DBIE (diversity, belonging, inclusion, and equity) prompted you to change your behavior, decision, or communication in a tangible way.' : '', dispatchEvent:()=>{} };
+  ai.closest = () => ({ innerText: ai.getAttribute('aria-label'), offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] });
+  dbie.closest = () => ({ innerText: dbie.getAttribute('aria-label'), offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] });
+  const page = { evaluate: async (fn, a) => {
+    global.HTMLTextAreaElement = { prototype: {} };
+    global.HTMLInputElement = { prototype: {} };
+    global.Event = class { constructor(){} };
+    global.CSS = { escape: s => s };
+    global.document = {
+      getElementById: () => null,
+      querySelector: () => null,
+      querySelectorAll: (selector) => {
+        if (selector === 'input,textarea' || selector === 'input, textarea') return [ai, dbie];
+        if (selector === 'input[type=radio]' || selector === '[role="radio"]' || selector === 'input[type=checkbox]' || selector === 'select') return [];
+        return [];
+      }
+    };
+    try { return fn(a); } finally { delete global.document; delete global.CSS; }
+  }};
+  await fillAdapterSpecificFields(page, { ats:'greenhouse', profile:{} });
+  assert.match(ai.value, /AI-assisted job application/);
+  assert.match(ai.value, /specific contribution|system design/i);
+  assert.match(dbie.value, /barriers|inclusive|human handoff/i);
+});
+
 test('Greenhouse prompt dropdown picks sibling select control from label-only question container', async () => {
   let clickedControl = false;
   let pickedNo = false;

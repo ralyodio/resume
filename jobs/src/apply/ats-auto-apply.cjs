@@ -648,7 +648,9 @@ async function fillRemainingRequiredFields(page, payload) {
     salaryAnnual: process.env.HERMES_APPLICANT_DESIRED_SALARY || '$350,000',
     salaryNumeric: String(process.env.HERMES_APPLICANT_DESIRED_SALARY || '350000').replace(/[^0-9.]/g,'') || '350000',
     hourlyRate: process.env.HERMES_APPLICANT_HOURLY_RATE || '$135/hour',
-    location: payload.profile.location || process.env.HERMES_APPLICANT_LOCATION || 'Los Gatos, CA, USA'
+    location: payload.profile.location || process.env.HERMES_APPLICANT_LOCATION || 'Los Gatos, CA, USA',
+    recentAiProject: 'Recently I built an AI-assisted job application and resume automation system using LLMs, retrieval over job/resume context, browser automation, and conservative submission verification. My role covered the system design, Node.js/Puppeteer automation, prompt/data strategy, ATS adapters, queue state, tests, and production hardening.',
+    dbieExample: 'I have changed my engineering process to make assumptions explicit, add accessibility-oriented checks, and provide human handoff when automation is uncertain. That helps avoid creating unnecessary barriers and makes communication clearer and more inclusive.'
   };
   await page.evaluate((a) => {
     function visible(el){ return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length); }
@@ -686,7 +688,9 @@ async function fillRemainingRequiredFields(page, payload) {
       const type = (el.type || '').toLowerCase();
       if (type === 'checkbox' && !el.checked && /agree|consent|terms|privacy|certif|acknowledge|confirm/.test(label)) { el.click(); continue; }
       if (type === 'radio') continue;
-      const value = /cover|summary|why|interest|additional/.test(label) ? (el.tagName === 'TEXTAREA' ? a.coverLetter : 'Please see my attached resume and cover letter.')
+      const value = /describe.*recent.*project.*(?:ai|llm|retrieval)|recent.*project.*(?:ai|llm|retrieval)|applied.*(?:ai|llm|retrieval).*production|problem.*approach.*specific contribution/.test(label) ? a.recentAiProject
+        : /\bdbie\b|diversity.*belonging.*inclusion.*equity|belonging.*inclusion.*equity|change.*behavior.*decision.*communication|inclusive.*equity/.test(label) ? a.dbieExample
+        : /cover|summary|why|interest|additional/.test(label) ? (el.tagName === 'TEXTAREA' ? a.coverLetter : 'Please see my attached resume and cover letter.')
         : /salary|compensation|annual/.test(label) ? (((el.type || '').toLowerCase() === 'number') ? a.salaryNumeric : a.salaryAnnual)
         : /hourly|rate/.test(label) ? a.hourlyRate
         : /location|city|country|address/.test(label) ? a.location
@@ -726,7 +730,9 @@ async function fillAdapterSpecificFields(page, payload) {
     yearsSoftware: process.env.HERMES_APPLICANT_SOFTWARE_YEARS || '20+ years',
     yearsSoftwareNumeric: String(process.env.HERMES_APPLICANT_SOFTWARE_YEARS || '20').replace(/[^0-9.]/g,'') || '20',
     aiTools: 'Claude, Claude Code, Cursor, Codex, OpenAI, Anthropic APIs, Gemini, GitHub Copilot, and custom LLM-powered automation workflows.',
-    aiApps: 'I have built production AI-powered applications and automation systems using major LLM APIs, including OpenAI and Anthropic/Claude, with full-stack integrations, browser automation, data pipelines, and agentic workflows.'
+    aiApps: 'I have built production AI-powered applications and automation systems using major LLM APIs, including OpenAI and Anthropic/Claude, with full-stack integrations, browser automation, data pipelines, and agentic workflows.',
+    recentAiProject: 'Recently I built an AI-assisted job application and resume automation system that uses LLMs, retrieval over job/resume context, browser automation, and conservative submission verification. The system parses job posts, generates tailored cover letters, fills ATS forms with Puppeteer, detects blockers, and records manual handoff events so repeated blockers can become automated fixes. My specific contribution was end-to-end system design and implementation: Node.js automation, prompt/data strategy, ATS adapters, file generation, queue state, tests, and production hardening.',
+    dbieExample: 'In recent product and automation work, I changed how I communicate and review systems by explicitly checking whether defaults, wording, and edge cases create unnecessary barriers for people. A concrete example is adding clearer review paths, accessibility-oriented form handling, and human handoff instead of forcing brittle automation when the system is uncertain. That changed my behavior from optimizing only for speed to also documenting assumptions, making failure states visible, and giving people a safer way to correct or complete the process.'
   };
   await page.evaluate((a) => {
     function visible(el){ return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects?.().length)); }
@@ -781,6 +787,8 @@ async function fillAdapterSpecificFields(page, payload) {
       else if (/years.*(engineering|software|professional)|professional.*software.*engineering|software.*engineering.*experience/.test(label)) setValue(el, (el.type || '').toLowerCase() === 'number' ? a.yearsSoftwareNumeric : a.yearsSoftware);
       else if (/years.*(ai|ml|llm|machine)|ai.*experience|llm.*experience/.test(label)) setValue(el, a.yearsAi);
       else if (/which.*ai.*tools|ai tools.*experience|tools.*experience.*ai/.test(label)) setValue(el, a.aiTools);
+      else if (/describe.*recent.*project.*(?:ai|llm|retrieval)|recent.*project.*(?:ai|llm|retrieval)|applied.*(?:ai|llm|retrieval).*production|problem.*approach.*specific contribution/.test(label)) setValue(el, a.recentAiProject);
+      else if (/\bdbie\b|diversity.*belonging.*inclusion.*equity|belonging.*inclusion.*equity|change.*behavior.*decision.*communication|inclusive.*equity/.test(label)) setValue(el, a.dbieExample);
       else if (/describe.*experience.*(ai|llm)|experience.*building.*ai|building.*ai-powered/.test(label)) setValue(el, a.aiApps);
       else if (/how.*hear|how.*heard|source.*opportunity|hear.*opportunity/.test(label)) setValue(el, 'Google / job search');
       else if (/current.*state.*residency|state.*residency/.test(label)) setValue(el, a.state);
@@ -1063,7 +1071,7 @@ async function fillGreenhousePromptDropdowns(page, payload) {
   await choosePromptDropdown(page, /state|province|current state of residency/i, [/california/i, /^ca$/i]);
   await choosePromptDropdown(page, /legally authorized|eligible to work|work authorization/i, [/^yes$/i, /authorized/i]);
   await choosePromptDropdown(page, /sponsor|sponsorship|visa/i, [/^no$/i, /not.*require/i]);
-  await choosePromptDropdown(page, /previously employed|previous employee|ever been.*employee|employee or contractor|recruiting process|spoken to anyone|interviewed/i, [/^no$/i]);
+  await choosePromptDropdown(page, /previously employed|previous employee|ever been.*employee|currently.*employed|ever been employed|staff member|reviewer|consultant at|employee or contractor|recruiting process|spoken to anyone|interviewed/i, [/^no$/i]);
   await choosePromptDropdown(page, /willing.*office|required.*days.*week|relocate|which office/i, [/remote/i, /none/i, /not applicable/i, /california/i, /^no$/i]);
   await choosePromptDropdown(page, /agreement|terms.*agreement|i agree|recruiting terms/i, [/agree/i, /^yes$/i, /accept/i]);
   await choosePromptDropdown(page, /credentialed/i, [/^no$/i]);
