@@ -1641,7 +1641,7 @@ async function browserApply({job,payload,opts}) {
     if (payload.ats === 'breezy') await fillFirst(page, ['textarea[name="cSummary"]'], payload.coverLetter || 'Please see my attached resume and cover letter.');
     await fillFirst(page, ['textarea[name*=cover i]','textarea[id*=cover i]','textarea[placeholder*=cover i]','textarea'], payload.coverLetter);
     let blockers = await findBlockers(page);
-    if (blockers.includes('captcha')) {
+    if (blockers.includes('captcha') && process.env.HERMES_ENABLE_CAPTCHA_SOLVING === '1') {
       const solved = await trySolveCaptcha(page).catch(() => false);
       if (solved) {
         await sleep(5000);

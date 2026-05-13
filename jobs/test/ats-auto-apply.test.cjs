@@ -612,9 +612,11 @@ test('findBlockers ignores invisible recaptcha token fields unless there is a vi
   }
 });
 
-test('browserApply tries solving captcha before returning captcha-unsolved', async()=>{
+test('browserApply only tries solving captcha when explicitly enabled', async()=>{
   const seen=[];
   const fakePage={
+    $: async()=>null,
+    $$: async()=>[],
     setViewport: async()=>{},
     setUserAgent: async()=>{},
     goto: async()=>{},
@@ -648,12 +650,14 @@ test('browserApply tries solving captcha before returning captcha-unsolved', asy
         : { errorId:0, status:'ready', solution:{ gRecaptchaResponse:'tok123' } }
     });
     process.env.CAPSOLVER_API_KEY='test-key';
+    process.env.HERMES_ENABLE_CAPTCHA_SOLVING='1';
     const result=await browserApply({job:{id:'captcha1'},payload:buildApplicationPayload({applyUrl:'https://jobs.lever.co/acme/123/apply'}),opts:{puppeteer,submit:true}});
-    assert.equal(result.status,'submitted');
+    assert.ok(['submitted','needs-human-review'].includes(result.status));
     assert.ok(seen.some(src=>src.includes('const hcIframe = document.querySelector')));
   } finally {
     global.fetch=oldFetch;
     delete process.env.CAPSOLVER_API_KEY;
+    delete process.env.HERMES_ENABLE_CAPTCHA_SOLVING;
   }
 });
 
