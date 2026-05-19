@@ -4,7 +4,7 @@ const defaultHermesJobConfig = {
   remoteOnly: true,
   postedWithinDays: 7,
   preferredPostedWithinDays: 3,
-  minScoreForQueue: 70,
+  minScoreForQueue: 50,
   minScoreForAutoApply: 85,
   humanReviewRequiredForNewSources: true,
   knownSafeAutoApplySources: ['linkedin', 'dice'],
