@@ -94,6 +94,14 @@ const ATS_ADAPTERS = {
   smartrecruiters: { id: 'smartrecruiters', name: 'SmartRecruiters', finalSubmitTexts: [/^submit application$/i, /^submit$/i] },
   bamboohr: { id: 'bamboohr', name: 'BambooHR' },
   recruiterbox: { id: 'recruiterbox', name: 'Recruiterbox' },
+  adp: {
+    id: 'adp',
+    name: 'ADP WorkforceNow',
+    initialApplyTexts: [/^apply$/i, /^apply now$/i, /^apply for this job$/i],
+    finalSubmitSelectors: ['button[type=submit]', 'button'],
+    finalSubmitTexts: [/^submit$/i, /^submit application$/i, /^apply$/i],
+    successTexts: [/application submitted/i, /thank you for applying/i, /application received/i, /successfully applied/i],
+  },
   email: { id: 'email', name: 'Email' },
 };
 

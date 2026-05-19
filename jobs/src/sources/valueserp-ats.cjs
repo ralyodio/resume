@@ -19,6 +19,7 @@ const ATS_TARGETS = [
   { id:'ashby', host:'jobs.ashbyhq.com' },
   { id:'workable', host:'apply.workable.com' },
   { id:'rippling', host:'ats.rippling.com' },
+  { id:'adp', host:'workforcenow.adp.com' },
   { id:'email', host:null, rawQuery:'("mailto:" OR "email your resume") "remote" "software engineer"' },
 ];
 

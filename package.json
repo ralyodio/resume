@@ -21,6 +21,7 @@
     "@browserbasehq/stagehand": "^3.4.0",
     "marked": "^14.1.2",
     "puppeteer": "^23.11.1",
+    "undici": "^7.25.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
