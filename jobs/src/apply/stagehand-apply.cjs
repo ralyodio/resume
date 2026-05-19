@@ -136,9 +136,21 @@ async function stagehandBrowserApply({ job, payload, opts = {} }) {
       await page.goto(externalApplyHref, { waitUntil: 'domcontentloaded' });
       await sleep(2500);
     } else {
-      // Fallback: try clicking if no direct href found
+      // Fallback: click the Apply button and capture any new tab it opens
+      const pageCountBefore = stagehand.context.pages().length;
       await actSafe(stagehand, 'click the "Apply", "Apply Now", or "Apply for this Job" button if one is visible');
       await sleep(2000);
+      const pagesAfter = stagehand.context.pages();
+      if (pagesAfter.length > pageCountBefore) {
+        // New tab opened — grab its URL, close it, navigate current tab there
+        const newTab = pagesAfter[pagesAfter.length - 1];
+        const newUrl = newTab.url();
+        await newTab.close().catch(() => {});
+        if (newUrl && newUrl !== 'about:blank') {
+          await page.goto(newUrl, { waitUntil: 'domcontentloaded' });
+          await sleep(2500);
+        }
+      }
     }
 
     const employerInfo = await extractSafe(stagehand, 'find the company or employer name on this page', z.object({
