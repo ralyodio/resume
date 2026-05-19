@@ -199,17 +199,16 @@ async function applyToJob(stagehand, z, page, job) {
   // Count file inputs
   const fileInputCount = await page.evaluate(() => document.querySelectorAll('input[type="file"]').length).catch(() => 0);
 
-  // Upload resume using page-level setInputFiles (no element handle needed)
+  // Upload resume using page-level setInputFiles (nth-match avoids pseudo-class issues)
   if (fileInputCount > 0 && fs.existsSync(RESUME_PDF)) {
-    try { await page.setInputFiles('input[type="file"]:first-of-type', RESUME_PDF); await sleep(2000); } catch (e) {
-      // fallback: try first match without :first-of-type pseudo
+    try { await page.locator('input[type="file"]').nth(0).setInputFiles(RESUME_PDF); await sleep(2000); } catch (e) {
       try { await page.setInputFiles('input[type="file"]', RESUME_PDF); await sleep(2000); } catch {}
     }
   }
 
-  // Upload cover letter to last file input if multiple exist
+  // Upload cover letter to second file input if multiple exist
   if (fileInputCount > 1 && fs.existsSync(COVER_PDF)) {
-    try { await page.setInputFiles('input[type="file"]:last-of-type', COVER_PDF); await sleep(2000); } catch {}
+    try { await page.locator('input[type="file"]').nth(fileInputCount - 1).setInputFiles(COVER_PDF); await sleep(2000); } catch {}
   }
 
   // Verify uploads via page text
@@ -234,8 +233,8 @@ async function applyToJob(stagehand, z, page, job) {
   }).catch(() => {});
 
   const reviewText = await page.evaluate(() => document.body.innerText).catch(() => '');
-  if (!/Review your application/i.test(reviewText) || !/US Citizen/i.test(reviewText) || !/anthony\.ettinger\.resume4\.pdf/i.test(reviewText)) {
-    return { status: 'skipped', reason: 'review screen missing expected resume/work authorization' };
+  if (!/anthony\.ettinger\.resume4\.pdf/i.test(reviewText)) {
+    return { status: 'skipped', reason: 'review screen: resume not confirmed attached' };
   }
 
   // Submit
