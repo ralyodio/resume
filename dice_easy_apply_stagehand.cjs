@@ -70,7 +70,7 @@ async function ensureLoggedIn(stagehand, z, page, context) {
   const homeText = await page.evaluate(() => document.body.innerText.slice(0, 400));
   const loggedIn = /Anthony Ettinger|Profile Visibility|Your Profile|My Jobs|Recommended Jobs/i.test(homeText)
     && !/Sign In|Continue with email/i.test(homeText);
-  if (loggedIn) return;
+  if (loggedIn) { console.error('[dice] logged in via saved cookies'); return; }
 
   const email = process.env.DICE_EMAIL;
   const password = process.env.DICE_PASSWORD;
