@@ -158,66 +158,106 @@ async function scanJobs(stagehand, z, page, state) {
 }
 
 async function applyToJob(stagehand, z, page, job) {
-  const applyUrl = `https://www.dice.com/job-applications/${job.id}/wizard`;
-  await page.goto(applyUrl, { waitUntil: 'domcontentloaded' });
+  // Visit job detail first to get actual application link and check title/company
+  await page.goto(job.url, { waitUntil: 'domcontentloaded' });
+  await sleep(3500);
+  const detail = await page.evaluate(() => {
+    const text = document.body.innerText;
+    const applyHref = Array.from(document.querySelectorAll('a[href*="/job-applications/"]')).map(a => a.href)[0] || '';
+    const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
+    const titleIdx = lines.findIndex(l => /^Apply$|^Applied$/.test(l));
+    const company = lines[titleIdx - 1] || '';
+    const title = titleIdx >= 0 ? lines[titleIdx + 1] : (document.title.split(' - ')[0] || '');
+    return { text, applyHref, title, company };
+  }).catch(() => ({ text: '', applyHref: '', title: '', company: '' }));
+
+  if (detail.title) job.title = detail.title;
+  if (detail.company) job.company = detail.company;
+
+  if (!detail.applyHref && !/Apply/i.test(detail.text)) {
+    return { status: 'skipped', reason: 'no Dice application link on detail page' };
+  }
+
+  const applyUrl = detail.applyHref || `https://www.dice.com/job-applications/${job.id}/wizard`;
+  await page.goto(applyUrl.includes('/wizard') ? applyUrl : applyUrl + (applyUrl.includes('?') ? '&' : '/') + 'wizard', { waitUntil: 'domcontentloaded' });
   await sleep(4500);
-  await actSafe(stagehand, 'dismiss or close any popup dialogs if present');
 
-  const pageInfo = await extractSafe(stagehand, 'On this Dice application page: has this application already been submitted? Is there a resume upload section? What is the current state?', z.object({
-    alreadySubmitted: z.boolean(),
-    hasResumeSection: z.boolean(),
-    currentState: z.string().optional(),
-  }));
+  // Dismiss dialogs via direct JS
+  await page.evaluate(() => {
+    for (const el of Array.from(document.querySelectorAll('button,[role="button"],a'))) {
+      const t = ((el.innerText || el.getAttribute('aria-label') || '').trim());
+      if (/^(Dismiss|Close|No Thanks|Not now|Cancel|Got it|OK|Okay)$/i.test(t)) el.click();
+    }
+  }).catch(() => {});
 
-  if (pageInfo?.alreadySubmitted) return { status: 'already_submitted', reason: 'already submitted' };
-  if (!pageInfo?.hasResumeSection) return { status: 'skipped', reason: 'application wizard not recognized' };
+  // Use direct page text check — same as original Puppeteer script
+  const wizardText = await page.evaluate(() => document.body.innerText).catch(() => '');
+
+  if (/already applied|application submitted|you applied/i.test(wizardText) && !/Submit\s*$/.test(wizardText)) {
+    return { status: 'already_submitted', reason: 'dice shows already submitted' };
+  }
+  if (!/Resume \*/i.test(wizardText)) {
+    return { status: 'skipped', reason: `application wizard not recognized: ${wizardText.slice(0, 80).replace(/\n/g, ' ')}` };
+  }
 
   // Upload resume
-  if (fs.existsSync(RESUME_PDF)) {
-    const resumeInputs = await page.$$('input[type="file"]');
-    if (resumeInputs.length > 0) {
-      try { await resumeInputs[0].setInputFiles(RESUME_PDF); await sleep(2000); } catch {}
-    }
+  const resumeInputs = await page.$$('input[type="file"]');
+  if (resumeInputs.length > 0 && fs.existsSync(RESUME_PDF)) {
+    try { await resumeInputs[0].setInputFiles(RESUME_PDF); await sleep(2000); } catch {}
   }
 
-  // Upload cover letter (second file input if present)
-  if (fs.existsSync(COVER_PDF)) {
-    const inputs = await page.$$('input[type="file"]');
-    if (inputs.length > 1) {
-      try { await inputs[inputs.length - 1].setInputFiles(COVER_PDF); await sleep(2000); } catch {}
-    }
+  // Upload cover letter
+  const allInputs = await page.$$('input[type="file"]');
+  if (allInputs.length > 1 && fs.existsSync(COVER_PDF)) {
+    try { await allInputs[allInputs.length - 1].setInputFiles(COVER_PDF); await sleep(2000); } catch {}
   }
 
-  // Verify uploads
-  const uploadCheck = await extractSafe(stagehand, 'Are the resume file "anthony.ettinger.resume4.pdf" and cover letter "anthony.ettinger.cover4.pdf" shown as attached on this page?', z.object({
-    resumeAttached: z.boolean(),
-    coverAttached: z.boolean(),
-  }));
-
-  if (!uploadCheck?.resumeAttached) return { status: 'skipped', reason: 'could not attach resume4.pdf' };
+  // Verify uploads via page text
+  const afterUpload = await page.evaluate(() => document.body.innerText).catch(() => '');
+  if (!/anthony\.ettinger\.resume4\.pdf/i.test(afterUpload)) {
+    return { status: 'skipped', reason: 'could not attach resume4.pdf' };
+  }
 
   if (DRY_RUN) return { status: 'dry_run_ready', reason: 'would submit after resume/cover attached' };
 
-  // Click Next to proceed to review
-  await actSafe(stagehand, 'click the Next button to proceed');
+  // Click Next via direct JS
+  await page.evaluate(() => {
+    const btn = Array.from(document.querySelectorAll('button,[role="button"]')).find(b => /^Next$/i.test((b.innerText || '').trim()));
+    if (btn) btn.click();
+  });
   await sleep(4000);
-  await actSafe(stagehand, 'dismiss or close any popup dialogs if present');
+  await page.evaluate(() => {
+    for (const el of Array.from(document.querySelectorAll('button,[role="button"],a'))) {
+      const t = ((el.innerText || el.getAttribute('aria-label') || '').trim());
+      if (/^(Dismiss|Close|No Thanks|Not now|Cancel|Got it|OK|Okay)$/i.test(t)) el.click();
+    }
+  }).catch(() => {});
 
-  // Verify review screen
-  const reviewCheck = await extractSafe(stagehand, 'Is this the "Review your application" screen showing the resume and work authorization (US Citizen)?', z.object({
-    isReviewScreen: z.boolean(),
-  }));
-
-  if (!reviewCheck?.isReviewScreen) return { status: 'skipped', reason: 'review screen not recognized' };
+  const reviewText = await page.evaluate(() => document.body.innerText).catch(() => '');
+  if (!/Review your application/i.test(reviewText) || !/US Citizen/i.test(reviewText) || !/anthony\.ettinger\.resume4\.pdf/i.test(reviewText)) {
+    return { status: 'skipped', reason: 'review screen missing expected resume/work authorization' };
+  }
 
   // Submit
-  await actSafe(stagehand, 'click the Submit button to submit the application');
+  await page.evaluate(() => {
+    const btn = Array.from(document.querySelectorAll('button,[role="button"]')).find(b => /^Submit$/i.test((b.innerText || '').trim()));
+    if (btn) btn.click();
+  });
   await sleep(7000);
-  await actSafe(stagehand, 'dismiss or close any popup dialogs if present');
+  await page.evaluate(() => {
+    for (const el of Array.from(document.querySelectorAll('button,[role="button"],a'))) {
+      const t = ((el.innerText || el.getAttribute('aria-label') || '').trim());
+      if (/^(Dismiss|Close|No Thanks|Not now|Cancel|Got it|OK|Okay)$/i.test(t)) el.click();
+    }
+  }).catch(() => {});
+  await page.keyboard.press('Enter').catch(() => {});
+  await sleep(2000);
 
-  const result = await extractSafe(stagehand, 'Was the Dice application successfully submitted? Look for "Application submitted", "You applied", or similar confirmation', z.object({ success: z.boolean() }));
-  if (result?.success) return { status: 'applied', reason: 'submitted' };
-  return { status: 'unknown_after_submit', reason: 'submit clicked but confirmation not detected' };
+  const doneText = await page.evaluate(() => document.body.innerText).catch(() => '');
+  if (/application submitted|you applied|success|thank you|applied/i.test(doneText)) {
+    return { status: 'applied', reason: 'submitted' };
+  }
+  return { status: 'unknown_after_submit', reason: doneText.replace(/\n/g, ' ').slice(0, 200) };
 }
 
 async function main() {
