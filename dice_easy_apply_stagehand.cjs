@@ -76,28 +76,37 @@ async function ensureLoggedIn(stagehand, z, page, context) {
   const password = process.env.DICE_PASSWORD;
   if (!email || !password) throw new Error('Not logged in and DICE_EMAIL/DICE_PASSWORD not set');
 
-  // Step 1: email — use pressSequentially to trigger React change events
+  // Use page.evaluate to set values and fire React synthetic events
+  function reactSet(sel, value) {
+    return page.evaluate(({ sel, value }) => {
+      const input = document.querySelector(sel);
+      if (!input) return false;
+      const nativeInput = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+      nativeInput.set.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }, { sel, value });
+  }
+
   await page.goto('https://www.dice.com/dashboard/login', { waitUntil: 'domcontentloaded' });
   await sleep(1500);
-  const emailSel = 'input[type="email"], input[name="email"], input[autocomplete="username"], input[id*="email" i]';
-  await page.waitForSelector(emailSel, { timeout: 15000 }).catch(() => {});
-  await page.locator(emailSel).first().pressSequentially(email, { delay: 30 }).catch(() => {});
-  await sleep(500);
-  // Click Continue button
+
+  // Step 1: email
+  await reactSet('input[type="email"], input[name="email"], input[autocomplete="username"]', email);
+  await sleep(300);
   await page.evaluate(() => {
     const btn = Array.from(document.querySelectorAll('button,[role="button"]')).find(b => /continue|next/i.test((b.innerText || b.getAttribute('aria-label') || '').trim()));
-    if (btn) { btn.click(); }
+    if (btn) btn.click();
   });
   await sleep(2000);
 
   // Step 2: password
-  const passSel = 'input[type="password"], input[name="password"], input[autocomplete="current-password"]';
-  await page.waitForSelector(passSel, { timeout: 10000 }).catch(() => {});
-  await page.locator(passSel).first().pressSequentially(password, { delay: 30 }).catch(() => {});
-  await sleep(500);
+  await reactSet('input[type="password"], input[name="password"]', password);
+  await sleep(300);
   await page.evaluate(() => {
     const btn = Array.from(document.querySelectorAll('button,[role="button"]')).find(b => /sign in|log in|login/i.test((b.innerText || b.getAttribute('aria-label') || '').trim()));
-    if (btn) { btn.click(); }
+    if (btn) btn.click();
   });
   await sleep(5000);
 
