@@ -22,10 +22,10 @@ const STATE_DIR = '/tmp/dice-easyapply-daily';
 const STATE_FILE = path.join(STATE_DIR, 'state.json');
 const LOG_FILE = path.join(STATE_DIR, 'results.jsonl');
 const COOKIE_FILE = path.join(os.homedir(), '.cache/hermes-dice-cookies.json');
-const MAX_APPLY = Number(process.env.MAX_APPLY || 15);
-const MAX_SCAN = Number(process.env.MAX_SCAN || 30);
+const MAX_APPLY = Number(process.env.MAX_APPLY || 999);
+const MAX_SCAN = Number(process.env.MAX_SCAN || 200);
 const DRY_RUN = process.env.DRY_RUN === '1';
-const SEARCHES = (process.env.SEARCHES || 'claude remote|AI engineer remote|LLM engineer remote|next.js remote').split('|').map(s => s.trim()).filter(Boolean);
+const SEARCHES = (process.env.SEARCHES || 'claude|react').split('|').map(s => s.trim()).filter(Boolean);
 const ACT_TIMEOUT = Number(process.env.STAGEHAND_ACT_TIMEOUT_MS || 45000);
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -127,7 +127,7 @@ function jobIdFromUrl(url) {
 async function scanJobs(stagehand, z, page, state) {
   const found = [];
   for (const q of SEARCHES) {
-    const url = `https://www.dice.com/jobs?filters.easyApply=true&filters.workplaceTypes=Remote&q=${encodeURIComponent(q)}`;
+    const url = `https://www.dice.com/jobs?filters.easyApply=true&filters.employmentType=CONTRACTS&filters.workplaceTypes=Remote&q=${encodeURIComponent(q)}`;
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     await sleep(5000);
     await actSafe(stagehand, 'dismiss or close any popup dialogs or cookie banners if present');
@@ -262,51 +262,67 @@ async function main() {
   const state = loadJson(STATE_FILE, { applied: {}, skipped: {}, seen: {}, alreadySubmitted: {} });
 
   const useCloud = Boolean(process.env.BROWSERBASE_API_KEY);
-  const stagehand = new Stagehand({
-    env: useCloud ? 'BROWSERBASE' : 'LOCAL',
-    apiKey: useCloud ? process.env.BROWSERBASE_API_KEY : undefined,
-    projectId: useCloud ? BROWSERBASE_PROJECT_ID : undefined,
-    modelName: STAGEHAND_MODEL,
-    modelClientOptions: { apiKey: process.env.ANTHROPIC_API_KEY },
-    verbose: process.env.STAGEHAND_VERBOSE === '1' ? 1 : 0,
-    ...(!useCloud && { localBrowserLaunchOptions: { headless: true } }),
-  });
 
-  await stagehand.init();
-  const context = stagehand.context;
-  const page = context.pages()[0];
-
-  try {
-    await ensureLoggedIn(stagehand, z, page, context);
-    const candidates = await scanJobs(stagehand, z, page, state);
-    console.log(`scanned ${candidates.length} candidate(s)`);
-
-    let submitted = 0;
-    for (const c of candidates) {
-      if (submitted >= MAX_APPLY) break;
-      console.log(`checking ${c.id} ${c.title} | ${c.company}`);
-      let result;
-      try {
-        result = await applyToJob(stagehand, z, page, c);
-      } catch (e) {
-        result = { status: 'error', reason: e.message };
-      }
-      const row = { jobId: c.id, title: c.title, company: c.company, url: c.url, search: c.search, status: result.status, reason: result.reason || '' };
-      log(row);
-      if (result.status === 'applied') { state.applied[c.id] = row; submitted++; }
-      else if (result.status === 'already_submitted') { state.alreadySubmitted[c.id] = row; submitted++; }
-      else if (result.status === 'skipped') state.skipped[c.id] = row;
-      state.seen[c.id] = row;
-      saveJson(STATE_FILE, state);
-      console.log(`${result.status}: ${c.title} | ${c.company} | ${c.url} | ${result.reason}`);
-      await sleep(1500);
-    }
-
-    await saveCookies(context);
-    console.log(`done: submitted/already-submitted count this run=${submitted}; state=${STATE_FILE}; log=${LOG_FILE}`);
-  } finally {
-    await stagehand.close().catch(() => {});
+  function makeStagehand() {
+    return new Stagehand({
+      env: useCloud ? 'BROWSERBASE' : 'LOCAL',
+      apiKey: useCloud ? process.env.BROWSERBASE_API_KEY : undefined,
+      projectId: useCloud ? BROWSERBASE_PROJECT_ID : undefined,
+      modelName: STAGEHAND_MODEL,
+      modelClientOptions: { apiKey: process.env.ANTHROPIC_API_KEY },
+      verbose: process.env.STAGEHAND_VERBOSE === '1' ? 1 : 0,
+      ...(useCloud && { browserbaseSessionCreateParams: { projectId: BROWSERBASE_PROJECT_ID, timeout: 900 } }),
+      ...(!useCloud && { localBrowserLaunchOptions: { headless: true } }),
+    });
   }
+
+  // Phase 1: scan — dedicated session
+  const scanSh = makeStagehand();
+  await scanSh.init();
+  const scanCtx = scanSh.context;
+  const scanPage = scanCtx.pages()[0];
+  let candidates;
+  try {
+    await ensureLoggedIn(scanSh, z, scanPage, scanCtx);
+    candidates = await scanJobs(scanSh, z, scanPage, state);
+    await saveCookies(scanCtx);
+  } finally {
+    await scanSh.close().catch(() => {});
+  }
+  console.log(`scanned ${candidates.length} candidate(s)`);
+
+  // Phase 2: apply — fresh session per job to avoid timeouts
+  let submitted = 0;
+  for (const c of candidates) {
+    if (submitted >= MAX_APPLY) break;
+    console.log(`checking ${c.id} ${c.title} | ${c.company}`);
+    let result;
+    const applySh = makeStagehand();
+    try {
+      await applySh.init();
+      const applyCtx = applySh.context;
+      const applyPage = applyCtx.pages()[0];
+      const cookies = await loadCookies();
+      if (cookies.length) await applyCtx.addCookies(cookies).catch(() => {});
+      result = await applyToJob(applySh, z, applyPage, c);
+      await saveCookies(applyCtx);
+    } catch (e) {
+      result = { status: 'error', reason: e.message };
+    } finally {
+      await applySh.close().catch(() => {});
+    }
+    const row = { jobId: c.id, title: c.title, company: c.company, url: c.url, search: c.search, status: result.status, reason: result.reason || '' };
+    log(row);
+    if (result.status === 'applied') { state.applied[c.id] = row; submitted++; }
+    else if (result.status === 'already_submitted') { state.alreadySubmitted[c.id] = row; submitted++; }
+    else if (result.status === 'skipped') state.skipped[c.id] = row;
+    state.seen[c.id] = row;
+    saveJson(STATE_FILE, state);
+    console.log(`${result.status}: ${c.title} | ${c.company} | ${c.url} | ${result.reason}`);
+    await sleep(1500);
+  }
+
+  console.log(`done: submitted/already-submitted count this run=${submitted}; state=${STATE_FILE}; log=${LOG_FILE}`);
 }
 
 main().catch(err => { console.error(err.stack || err.message || String(err)); process.exit(1); });
