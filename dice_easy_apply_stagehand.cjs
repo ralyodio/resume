@@ -67,29 +67,35 @@ async function ensureLoggedIn(stagehand, z, page, context) {
   await page.goto('https://www.dice.com/home-feed', { waitUntil: 'domcontentloaded' });
   await sleep(2500);
 
-  const check = await extractSafe(stagehand, 'Is the user logged into Dice.com? Look for a logged-in home feed vs a sign-in page', z.object({ loggedIn: z.boolean() }));
-  if (check?.loggedIn) return;
+  const homeText = await page.evaluate(() => document.body.innerText.slice(0, 400));
+  const loggedIn = /Anthony Ettinger|Profile Visibility|Your Profile|My Jobs|Recommended Jobs/i.test(homeText)
+    && !/Sign In|Continue with email/i.test(homeText);
+  if (loggedIn) return;
 
   const email = process.env.DICE_EMAIL;
   const password = process.env.DICE_PASSWORD;
   if (!email || !password) throw new Error('Not logged in and DICE_EMAIL/DICE_PASSWORD not set');
 
+  // Step 1: email
   await page.goto('https://www.dice.com/dashboard/login', { waitUntil: 'domcontentloaded' });
   await sleep(1500);
-  await actSafe(stagehand, `fill in the email field with "${email}"`);
-  await actSafe(stagehand, 'click the Continue with email or Next button');
+  await page.fill('input[type="email"], input[name="email"], input[autocomplete="username"]', email).catch(() => {});
+  await page.click('button[type="submit"], button').catch(() => {});
   await sleep(1500);
-  await actSafe(stagehand, `fill in the password field with "${password}"`);
-  await actSafe(stagehand, 'click the Sign In button');
-  await sleep(3500);
 
-  const mfaCheck = await extractSafe(stagehand, 'Is there a CAPTCHA or verification challenge on screen?', z.object({ challenge: z.boolean() }));
-  if (mfaCheck?.challenge) throw new Error('Dice requires manual CAPTCHA/MFA. Complete it then rerun.');
+  // Step 2: password
+  await page.fill('input[type="password"], input[name="password"]', password).catch(() => {});
+  await page.click('button[type="submit"], button').catch(() => {});
+  await sleep(4000);
 
-  const afterLogin = await extractSafe(stagehand, 'Is the user now logged into Dice.com?', z.object({ loggedIn: z.boolean() }));
-  if (!afterLogin?.loggedIn) throw new Error('Dice login failed. Check credentials in .env');
+  const afterText = await page.evaluate(() => document.body.innerText.slice(0, 300));
+  if (/captcha|verification|multi-factor|security code/i.test(afterText))
+    throw new Error('Dice requires manual CAPTCHA/MFA. Complete it then rerun.');
 
-  await saveCookies(context);
+  // Dice search works even without login — don't hard-fail, just warn
+  const stillOnLogin = page.url().includes('/login');
+  if (stillOnLogin) console.error('[dice] Warning: login may have failed; proceeding as guest (search still works)');
+  else await saveCookies(context);
 }
 
 function jobIdFromUrl(url) {
@@ -121,8 +127,7 @@ async function scanJobs(stagehand, z, page, state) {
       if (!id) continue;
       if (state.applied?.[id] || state.alreadySubmitted?.[id] || state.skipped?.[id]) continue;
       if (found.find(x => x.id === id)) continue;
-      const label = it.texts.join(' | ');
-      if (!/easy apply/i.test(label)) continue;
+      // URL already has filters.easyApply=true — no need to re-check text
       found.push({ id, title: it.texts[0] || 'Dice job', company: '', search: q, url: it.href });
       if (found.length >= MAX_SCAN) return found;
     }
