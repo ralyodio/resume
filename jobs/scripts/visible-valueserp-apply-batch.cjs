@@ -12,6 +12,16 @@ function sanitizeMessage(message) {
   return String(message || '').replace(/https?:\/\/[^\s]+/g, m => redactUrl(m));
 }
 
+async function withAbortTimeout(label, timeoutMs, fn) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  try {
+    return await fn(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const QUERIES = (process.env.HERMES_JOB_GOOGLE_QUERIES || [
   'AI Engineer',
   'Generative AI Engineer',
@@ -62,7 +72,10 @@ async function searchAndApprove(){
       for (const target of valueserp.ATS_TARGETS.filter(t=>t.id!=='email' && !(process.env.HERMES_DISABLE_ASHBY === '1' && t.id === 'ashby'))) {
         console.log(`SEARCH_TARGET\t${query}\t${target.id}`);
         try {
-          const got = await valueserp.searchTarget(target,{query, remoteOnly:true, usaOnly:true, limit:PER_QUERY, maxPages:3});
+          const timeoutMs = Number(process.env.VALUESERP_TARGET_TIMEOUT_MS || 90000);
+          const got = await withAbortTimeout(`ValueSERP ${query} ${target.id}`, timeoutMs, signal =>
+            valueserp.searchTarget(target,{query, remoteOnly:true, usaOnly:true, limit:PER_QUERY, maxPages:Number(process.env.VALUESERP_MAX_PAGES || 3), timeoutMs:Number(process.env.VALUESERP_FETCH_TIMEOUT_MS || 20000), signal})
+          );
           console.log(`SEARCH_TARGET_DONE\t${query}\t${target.id}\tfound=${got.length}`);
           jobs.push(...got);
         } catch (err) {

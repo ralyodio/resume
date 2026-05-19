@@ -194,7 +194,7 @@ async function searchTarget(target, opts={}){
   const seen=new Set();
   for(let page=Number(opts.startPage || 1); page<=maxPages; page++){
     const url=buildValueSerpUrl({apiKey, host:target.host, query:target.rawQuery || opts.query || '', page, location:opts.location||getValueSerpLocation(), gl:opts.gl||getValueSerpGl(), hl:opts.hl||getValueSerpHl(), googleDomain:opts.googleDomain||getValueSerpGoogleDomain(), remoteOnly:target.rawQuery ? false : opts.remoteOnly!==false, usaOnly: opts.usaOnly ?? getUsOnly()});
-    const payload=await fetchJson(url, {timeoutMs:Number(opts.timeoutMs||20000)});
+    const payload=await fetchJson(url, {timeoutMs:Number(opts.timeoutMs||20000), signal: opts.signal, noProxy: !/^(1|true|yes)$/i.test(process.env.HERMES_VALUESERP_USE_PROXY || '')});
     const results=organicResults(payload);
     if(!results.length) break;
     for(const r of results){

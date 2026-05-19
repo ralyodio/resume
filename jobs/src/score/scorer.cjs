@@ -1,6 +1,9 @@
 const { defaultHermesJobConfig } = require('../config/defaults.cjs');
 function has(t, rx){ return rx.test(String(t||'').toLowerCase()); }
 function daysOld(iso){ if (!iso) return Infinity; return (Date.now() - new Date(iso).getTime()) / 86400000; }
+function requiresVideoApplication(text){
+  return /\b(one[-\s]?way|pre[-\s]?recorded|record(?:ed)?|submit|upload|complete|answer|response|interview|application)\b.{0,80}\b(video|webcam|camera|loom)\b|\b(video|webcam|camera|loom)\b.{0,80}\b(interview|response|answer|application|submission|screen(?:ing)?|assessment|record(?:ing)?|upload|required)\b/.test(String(text||'').toLowerCase());
+}
 function scoreJob(job, config={}){
   const cfg={...defaultHermesJobConfig, ...config};
   let score=0; const reasons=[]; const riskFlags=[];
@@ -9,6 +12,7 @@ function scoreJob(job, config={}){
   const add=(n,r)=>{score+=n; reasons.push(`${n>0?'+':''}${n} ${r}`)}; const risk=(n,r)=>{score+=n; riskFlags.push(r); reasons.push(`${n} ${r}`)};
   const technicalTitle = /\b(engineer|developer|architect|devops|sre|site reliability|platform|infrastructure|full[- ]?stack|frontend|backend|software|programmer|technologist|technical lead|systems design|security research)\b/.test(title);
   const nonEngineeringTitle = /\b(marketing manager|marketing assistant|executive assistant|research analyst|business analyst|sales|account executive|customer support|recruiter|talent acquisition|video artist|designer|copywriter|content|finance|bookkeeper|operations assistant)\b/.test(title) && !technicalTitle;
+  const videoRequired = requiresVideoApplication(text);
   if (job.remote) add(30,'remote'); else risk(-35,'no remote confirmation');
   if (has(text,/\b(ai|llm|agentic|generative ai|genai|machine learning|ml infra|rag|openai|anthropic|claude)\b/)) add(25,'AI/LLM signal');
   if (has(text,/\b(web3|crypto|blockchain|protocol|defi|smart contract|solidity|ethereum|polygon)\b/)) add(25,'Web3/crypto signal');
@@ -29,13 +33,15 @@ function scoreJob(job, config={}){
   if (has(text,/relocation required|must relocate/)) risk(-50,'relocation required');
   if (has(text,/guaranteed income|wire money|upfront fee|telegram only|whatsapp only/)) risk(-60,'scam language');
   if (has(text,/token[- ]only|paid in tokens only|equity only|crypto pump/)) risk(-75,'token-only crypto compensation');
+  if (videoRequired) risk(-100,'video application required');
   if (nonEngineeringTitle) risk(-90,'non-engineering role');
   score=Math.max(0, Math.min(100, score));
   let decision = score >= cfg.minScoreForAutoApply ? 'auto-apply-eligible' : score >= cfg.minScoreForQueue ? 'queue-for-review' : score >= 50 ? 'save-only' : 'skip';
   const knownSafe = (cfg.knownSafeAutoApplySources||[]).includes(job.source);
   if (decision === 'auto-apply-eligible' && (cfg.humanReviewRequiredForNewSources && !knownSafe)) decision='queue-for-review';
+  if (videoRequired) decision='skip';
   if (nonEngineeringTitle) decision='skip';
   if (riskFlags.some(r=>/clearance|required|unpaid|commission|relocation|token-only|scam|hybrid/.test(r)) && score < cfg.minScoreForQueue) decision='skip';
   return { score, reasons, riskFlags, decision };
 }
-module.exports={scoreJob};
+module.exports={scoreJob, requiresVideoApplication};

@@ -99,8 +99,27 @@ test('generic screening classifier answers by question meaning, not exact hardco
   assert.equal(classifyScreeningAnswer('Are you 18 years of age or older?'), 'yes');
   assert.equal(classifyScreeningAnswer('Have you worked at a startup company before?'), 'yes');
   assert.equal(classifyScreeningAnswer('Are you interested in Full-Time employment with CIQ?'), 'yes');
+  assert.equal(classifyScreeningAnswer('Do you consent to receiving text messages about this application?'), 'no');
+  assert.equal(classifyScreeningAnswer('Yes - I consent to receiving text messages No - I do not consent to receiving text messages'), 'no');
   assert.equal(classifyScreeningAnswer('If yes, how are you authorized?', ['US Citizenship','US Permanent Resident','Visa','None of the above apply']), 'US Citizenship');
   assert.equal(classifyScreeningAnswer('What is your favorite database?'), null);
+});
+
+test('adapter-specific filler answers Rippling SMS consent radio groups as no', async () => {
+  const group = { innerText:'Yes - I consent to receiving text messages No - I do not consent to receiving text messages', offsetWidth:10, offsetHeight:10, getClientRects:()=>[1] };
+  const yes = { type:'radio', name:'sms', value:'Yes - I consent to receiving text messages', checked:false, disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; }, closest:()=>group };
+  const no = { type:'radio', name:'sms', value:'No - I do not consent to receiving text messages', checked:false, disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', dispatchEvent:()=>{}, click(){ this.checked=true; }, closest:()=>group };
+  const page = { evaluate: async (fn, a) => {
+    global.HTMLTextAreaElement = { prototype: {} };
+    global.HTMLInputElement = { prototype: {} };
+    global.Event = class { constructor(){} };
+    global.CSS = { escape: s => s };
+    global.document = { getElementById: () => null, querySelector: () => null, querySelectorAll: (selector) => selector === 'input[type=radio]' ? [yes,no] : [] };
+    try { return fn(a); } finally { delete global.document; delete global.CSS; }
+  }};
+  await fillAdapterSpecificFields(page, { ats:'rippling', profile:{} });
+  assert.equal(yes.checked, false);
+  assert.equal(no.checked, true);
 });
 
 test('adapter-specific filler handles Breezy required radios and proficiency selects', async () => {
@@ -319,6 +338,37 @@ test('adapter-specific filler answers CIQ-style Greenhouse required radios and t
   assert.equal(remoteLocation.value, 'Los Gatos, CA, USA');
   assert.equal(startDate.value, 'Immediately');
   assert.equal(salary.value, '$350,000');
+});
+
+test('adapter-specific filler selects user-provided EEO gender and race when available', async () => {
+  const makeSelect = (label, options) => ({
+    tagName:'SELECT', name:'', id:'', value:'', disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1],
+    getAttribute:(key)=> key === 'aria-label' ? label : '',
+    options: options.map(text => ({ text, value:text })),
+    dispatchEvent:()=>{}
+  });
+  const gender = makeSelect('Gender', ['Prefer not to disclose','Female','Male']);
+  const race = makeSelect('Race/Ethnicity', ['Prefer not to disclose','Asian','White']);
+  const page = { evaluate: async (fn, a) => {
+    global.HTMLTextAreaElement = { prototype: {} };
+    global.HTMLInputElement = { prototype: {} };
+    global.Event = class { constructor(){} };
+    global.CSS = { escape: s => s };
+    global.document = {
+      getElementById: () => null,
+      querySelector: () => null,
+      querySelectorAll: (selector) => {
+        if (selector === 'select') return [gender, race];
+        if (selector === 'input[type=radio]' || selector === '[role="radio"]' || selector === 'input[type=checkbox]') return [];
+        if (selector === 'input,textarea' || selector === 'input, textarea' || selector === 'textarea,input' || selector === 'textarea, input') return [];
+        return [];
+      }
+    };
+    try { return fn(a); } finally { delete global.document; delete global.CSS; }
+  }};
+  await fillAdapterSpecificFields(page, { ats:'greenhouse', profile:{ location:'Los Gatos, CA, USA' } });
+  assert.equal(gender.value, 'Male');
+  assert.equal(race.value, 'White');
 });
 
 test('ATS adapter registry defines per-site browser behavior', () => {
@@ -612,6 +662,25 @@ test('findBlockers ignores invisible recaptcha token fields unless there is a vi
   }
 });
 
+test('findBlockers flags required video application steps',async()=>{
+  const page={evaluate:async(fn,arg)=>fn(arg)};
+  const oldDocument=global.document;
+  const oldLocation=global.location;
+  try {
+    global.location={pathname:'/apply'};
+    global.document={
+      body:{innerText:'Before submitting your application, please complete a one-way video interview using your webcam.'},
+      querySelectorAll:(selector)=>[],
+      querySelector:(selector)=>null,
+    };
+    const blockers = await findBlockers(page);
+    assert.ok(blockers.includes('video-required'));
+  } finally {
+    global.document=oldDocument;
+    global.location=oldLocation;
+  }
+});
+
 test('browserApply only tries solving captcha when explicitly enabled', async()=>{
   const seen=[];
   const fakePage={
@@ -740,6 +809,30 @@ test('clickInitialApplyLink clicks role button wrappers for apply actions', asyn
       }] : []
     };
     assert.equal(await clickInitialApplyLink(page, 'ashby'), true);
+    assert.equal(clicked, true);
+  } finally {
+    global.document=oldDocument;
+  }
+});
+
+test('Rippling initial apply recognizes localized Portuguese apply-now text', async()=>{
+  let clicked=false;
+  const page={evaluate:async(fn,arg)=>fn(arg)};
+  const oldDocument=global.document;
+  try {
+    global.document={
+      querySelectorAll:(selector)=> selector === 'a, button, input[type=button], input[type=submit], [role="button"]' ? [{
+        innerText:'Candidatar-se agora',
+        value:'',
+        href:'',
+        offsetWidth:120,
+        offsetHeight:32,
+        getClientRects:()=>[{}],
+        getAttribute:()=>'',
+        click:()=>{ clicked=true; }
+      }] : []
+    };
+    assert.equal(await clickInitialApplyLink(page, 'rippling'), true);
     assert.equal(clicked, true);
   } finally {
     global.document=oldDocument;

@@ -162,6 +162,10 @@ function classifyScreeningAnswer(question, choices = []) {
   const choice = (re) => opts.find(o => re.test(o));
 
   if (!q) return null;
+  if (has(/startup company/)) return 'yes';
+  if (has(/18 years of age or older|over\s*18|eighteen years/)) return 'yes';
+  if (has(/full[- ]time employment|interested in full[- ]time/)) return 'yes';
+  if (has(/(?:text|sms) messages?|receiving texts?|consent to receiving text|do not consent to receiving text/)) return 'no';
   if (has(/(?:how|what).*(?:authorized|authorised|work authorization|work authori[sz]ation|work eligibility|citizenship)/) || has(/if.*yes.*previous.*authorized/)) {
     return choice(/us citizenship|u\.?s\.? citizen|citizen/i) || 'US Citizenship';
   }
@@ -174,9 +178,6 @@ function classifyScreeningAnswer(question, choices = []) {
   if (has(/(?:event|conference|kubecon).*(?:meet|met|see|saw|attend|attending)/) || has(/(?:meet|met|see|saw).*(?:event|conference|kubecon)/)) return 'no';
   if (has(/(?:active|current).*(?:clearance|security clearance|government issued clearance)/) || has(/(?:clearance|security clearance).*(?:active|current|level)/)) return 'no';
   if (has(/(?:credentialed|credential).*(?:with|by)/)) return 'no';
-  if (has(/18 years of age or older|over\s*18|eighteen years/)) return 'yes';
-  if (has(/startup company/)) return 'yes';
-  if (has(/full[- ]time employment|interested in full[- ]time/)) return 'yes';
   if (has(/production llm-powered system|built.*operated.*production.*llm|served real end users.*live environment/)) return 'yes';
   if (has(/\b(?:pmp|scrum master|prince2|project management professional|certification|certified|credential)s?\b/)) return 'no';
   if (has(/\b(?:ehr|emr|meditech|cerner|oracle health|epic|hl7|fhir)\b/)) return 'no';
@@ -487,6 +488,7 @@ async function fillProfileFieldsByLabel(page, payload) {
       const label = labelFor(el);
       if (/first\s*name|given\s*name/.test(label)) set(el, a.firstName);
       else if (/last\s*name|family\s*name|surname/.test(label)) set(el, a.lastName);
+      else if (/otherwise.*n\/?a|family.*friend.*name|their name\(s\)/.test(label)) set(el, 'N/A');
       else if (/full\s*name|^name\b|\bname\b/.test(label) && !/company|school|employer|file/.test(label)) set(el, a.name);
       else if (/e-?mail|email/.test(label)) set(el, a.email);
       else if (/phone|mobile|telephone/.test(label)) set(el, /country.*phone.*code/.test(label) ? '' : (el.type === 'tel' || /phone\s*number/.test(label) ? (a.phoneDigits || a.phone) : a.phone));
@@ -513,7 +515,9 @@ async function fillProfileFieldsByLabel(page, payload) {
         : /state|province/.test(label) ? /^(ca|california)$/i
         : /sponsor/.test(label) ? /no/i
         : /authorized|work.*auth|eligib|citizen/.test(label) ? /(yes|authorized|citizen|united states|usa)/i
-        : /gender|race|ethnicity|veteran|disability/.test(label) ? /(decline|prefer not|do not wish|not disclose)/i
+        : /gender/.test(label) ? /(^|\b)male\b/i
+        : /race|ethnicity|ethnic/.test(label) ? /(^|\b)white\b/i
+        : /veteran|disability/.test(label) ? /(decline|prefer not|do not wish|not disclose)/i
         : null;
       if (!want) continue;
       const opt = Array.from(sel.options).find(o => want.test(o.text) || want.test(o.value));
@@ -564,6 +568,8 @@ async function fillPlatformSpecificFields(page, payload) {
     salaryAnnual: process.env.HERMES_APPLICANT_DESIRED_SALARY || '$350,000',
     salaryNumeric: String(process.env.HERMES_APPLICANT_DESIRED_SALARY || '350000').replace(/[^0-9.]/g,'') || '350000',
     hourlyRate: process.env.HERMES_APPLICANT_HOURLY_RATE || '$135/hour',
+    gender: 'Male',
+    race: 'White',
     decline: 'Prefer not to disclose',
     over18: 'Yes'
   };
@@ -616,7 +622,9 @@ async function fillPlatformSpecificFields(page, payload) {
       else if (/state|province/.test(label)) chooseSelect(sel, [/^ca$/i, /california/i]);
       else if (/sponsor|visa/.test(label)) chooseSelect(sel, [/^no$/i, /not.*require/i]);
       else if (/authorized|eligible.*work|work.*auth/.test(label)) chooseSelect(sel, [/^yes$/i, /authorized/i, /citizen/i]);
-      else if (/gender|race|ethnic|veteran|disability|demographic/.test(label)) chooseSelect(sel, [/prefer not/i, /decline/i, /do not wish/i, /not disclose/i]);
+      else if (/gender/.test(label)) chooseSelect(sel, [/^male$/i, /\bmale\b/i]);
+      else if (/race|ethnic/.test(label)) chooseSelect(sel, [/^white$/i, /\bwhite\b/i]);
+      else if (/veteran|disability|demographic/.test(label)) chooseSelect(sel, [/prefer not/i, /decline/i, /do not wish/i, /not disclose/i]);
     }
     const radiosByName = new Map();
     for (const r of document.querySelectorAll('input[type=radio]')) {
@@ -630,7 +638,9 @@ async function fillPlatformSpecificFields(page, payload) {
       const want = /sponsor|visa/.test(text) ? [/\bno\b/i]
         : /authorized|eligible|work.*auth/.test(text) ? [/\byes\b/i, /authorized/i]
         : /over.*18|eighteen|adult/.test(text) ? [/\byes\b/i]
-        : /gender|race|ethnic|veteran|disability|demographic/.test(text) ? [/prefer not/i, /decline/i, /not disclose/i]
+        : /gender/.test(text) ? [/^male$/i, /\bmale\b/i]
+        : /race|ethnic/.test(text) ? [/^white$/i, /\bwhite\b/i]
+        : /veteran|disability|demographic/.test(text) ? [/prefer not/i, /decline/i, /not disclose/i]
         : [];
       for (const re of want) {
         const hit = group.find(r => re.test(labelFor(r)) || re.test(r.value || ''));
@@ -770,13 +780,17 @@ async function fillAdapterSpecificFields(page, payload) {
     // Stable names/ids used by Breezy, Greenhouse, and ApplyToJob/JazzHR variants.
     for (const el of document.querySelectorAll('input,textarea')) {
       const label = labelFor(el);
-      if (el.name === 'cName') setValue(el, a.name);
+      if (/otherwise.*n\/?a|family.*friend.*name|their name\(s\)/.test(label)) setValue(el, 'N/A');
+      else if (el.name === 'cName') setValue(el, a.name);
       else if (el.name === 'cEmail') setValue(el, a.email);
       else if (el.name === 'cPhoneNumber') setValue(el, a.phoneDigits || a.phone);
       else if (/^first_name$|first.*name|given.*name/.test(el.id || label)) setValue(el, a.firstName);
       else if (/^last_name$|last.*name|family.*name|surname/.test(el.id || label)) setValue(el, a.lastName);
       else if (/^email$|e-?mail/.test(el.id || label)) setValue(el, a.email);
       else if (/^phone$|phone|mobile|telephone/.test(el.id || label)) setValue(el, /country.*phone.*code/.test(label) ? '' : (a.phoneDigits || a.phone));
+      else if (/salary|compensation/.test(label)) setValue(el, ((el.type || '').toLowerCase() === 'number') ? a.salaryNumeric : a.salaryAnnual);
+      else if (/available.*start|start\s*date|when.*start/.test(label)) setValue(el, a.start);
+      else if (/remote.*where.*working|where.*working.*country.*state.*city/.test(label)) setValue(el, a.location);
       else if (/location.*city|city.*location|\bcity\b/.test(el.id || label)) setValue(el, a.city);
       else if (/\blocation\b/.test(el.id || label)) setValue(el, a.location);
       else if (el.name === 'cAddress' || el.id === 'fullAddress') setValue(el, a.location);
@@ -821,12 +835,17 @@ async function fillAdapterSpecificFields(page, payload) {
       const has = (re) => re.test(q);
       const choice = (re) => opts.find(o => re.test(o));
       if (!q) return null;
+      if (has(/startup company/)) return 'yes';
+      if (has(/18 years of age or older|over\s*18|eighteen years/)) return 'yes';
+      if (has(/full[- ]time employment|interested in full[- ]time/)) return 'yes';
+      if (has(/(?:text|sms) messages?|receiving texts?|consent to receiving text|do not consent to receiving text/)) return 'no';
       if (has(/(?:how|what).*(?:authorized|authorised|work authorization|work authori[sz]ation|work eligibility|citizenship)/) || has(/if.*yes.*previous.*authorized/)) return choice(/us citizenship|u\.?s\.? citizen|citizen/i) || 'US Citizenship';
   if (/(?:authorized|authorised|eligible|eligibility|legal right|citizen|green card).*(?:work|employment|living|resid).*(?:united states|u\.?s\.?|usa|50 states)/.test(q) || /(?:work|employment|living|resid).*(?:authorized|authorised|eligible|citizen|green card).*(?:united states|u\.?s\.?|usa|50 states)/.test(q)) return 'yes';
   if (/(?:need|require|requires|requiring).*(?:visa|sponsor|sponsorship)/.test(q) || /(?:visa|sponsor|sponsorship).*(?:need|require|requires|requiring)/.test(q)) return 'no';
   if (/acceptable.*(?:salary|compensation|pay).*range/.test(q) || /(?:salary|compensation|pay).*range.*acceptable/.test(q)) return 'no';
       if (has(/(?:previously|formerly|ever).*(?:employed|worked).*(?:with|for|at)\b/) || has(/(?:employed|worked).*(?:with|for|at).*(?:previously|formerly|before)/) || has(/(?:recruiting process|interviewed|spoken to anyone).*(?:role|position|company|associates)/)) return 'no';
       if (has(/(?:ccpa|privacy|consumer privacy|disclosure|policy).*(?:acknowledge|provided|consent|agree)/) || has(/(?:acknowledge|provided|consent|agree).*(?:ccpa|privacy|consumer privacy|disclosure|policy)/)) return 'yes';
+      if (has(/family|friends?.*(?:currently )?employed|related to anyone at the company/)) return 'no';
       if (has(/(?:event|conference|kubecon).*(?:meet|met|see|saw|attend|attending)/) || has(/(?:meet|met|see|saw).*(?:event|conference|kubecon)/)) return 'no';
       if (has(/(?:active|current).*(?:clearance|security clearance|government issued clearance)/) || has(/(?:clearance|security clearance).*(?:active|current|level)/)) return 'no';
       if (has(/(?:credentialed|credential).*(?:with|by)/)) return 'no';
@@ -942,7 +961,8 @@ async function fillAdapterSpecificFields(page, payload) {
             }
             return false;
           };
-          if (/gender identity/.test(label)) { selectRadio(/prefer not to disclose/i); continue; }
+          if (/gender identity|\bgender\b/.test(label)) { selectRadio(/^male$|\bmale\b/i); continue; }
+          if (/race|ethnicity|ethnic/.test(label)) { selectRadio(/^white$|\bwhite\b/i); continue; }
           if (/veteran status/.test(label)) { selectRadio(/i am not a veteran/i); continue; }
           if (/quality, safety, or compliance/.test(label)) { selectRadio(/privacy\s*\/\s*equity\s*\/\s*regulation compliant|privacy.*equity.*regulation compliant/i); continue; }
           if (/role in system design and technical decision-making/.test(label)) { selectRadio(/shared architectural ownership/i); continue; }
@@ -960,6 +980,8 @@ async function fillAdapterSpecificFields(page, payload) {
       }
       if (/country/.test(label)) chooseSelect(sel, [/united states/i, /^us$/i, /^usa$/i]);
       else if (/state/.test(label)) chooseSelect(sel, [/california/i, /^ca$/i]);
+      else if (/gender/.test(label)) chooseSelect(sel, [/^male$/i, /\bmale\b/i]);
+      else if (/race|ethnicity|ethnic/.test(label)) chooseSelect(sel, [/^white$/i, /\bwhite\b/i]);
       else if (/citizenship|eligible|authorized|legally authorized|employment eligibility/.test(label)) chooseSelect(sel, [/yes/i, /citizen/i, /authorized/i, /permanent resident/i]);
       else if (/sponsor|visa/.test(label)) chooseSelect(sel, [/^no$/i, /not.*require/i]);
       else if (/background|credit/.test(label)) chooseSelect(sel, [/^yes$/i]);
@@ -1138,6 +1160,8 @@ async function findBlockers(page) {
     const captchaText = /(?:solve|complete|verify|verification|challenge|security).*?(?:captcha|recaptcha|hcaptcha)|(?:captcha|recaptcha|hcaptcha).*?(?:required|challenge|verification)/.test(text);
     const captchaElements = Array.from(document.querySelectorAll('[class*=captcha], [id*=captcha], iframe[src*=captcha], iframe[src*=recaptcha], iframe[src*=hcaptcha]')).filter(captchaChallenge);
     if (captchaText || captchaElements.length) blockers.push('captcha');
+    const videoRequired = /\b(one[-\s]?way|pre[-\s]?recorded|record(?:ed)?|submit|upload|complete|answer|response|interview|application)\b.{0,80}\b(video|webcam|camera|loom)\b|\b(video|webcam|camera|loom)\b.{0,80}\b(interview|response|answer|application|submission|screen(?:ing)?|assessment|record(?:ing)?|upload|required)\b/.test(text);
+    if (videoRequired) blockers.push('video-required');
     const path = globalThis.location?.pathname || '';
     if (Array.from(document.querySelectorAll('input[type=password]')).some(visible) || /\/login\b/i.test(path)) blockers.push('login');
     const unknownRequired = [];
@@ -1199,6 +1223,7 @@ async function clickFinalSubmit(page, ats = '') {
       const text = (e.innerText || e.value || e.getAttribute('aria-label') || '').replace(/\s+/g,' ').trim();
       if (/cookie|linkedin|indeed|google|facebook|back|cancel|dismiss|reject|decline|share|sign.?in|log.?in|create.?account|save.?draft|save.?for.?later/i.test(text)) return false;
       if (adapterSpec.id === 'applytojob' && e.id === 'resumator-submit-resume' && /^submit application$/i.test(text)) return true;
+      if (/^apply(?: now| for this job| for this role)?$/i.test(text) && adapterSpec.id !== 'rippling') return false;
       return textRes.some(re => re.test(text)) || /^(submit|submit application|submit your application|submit my application|send application|send my application|apply|apply now|apply for this job|apply for this role|complete application|complete submission|confirm|confirm and submit|confirm application|finish|finish application|done|send)$/i.test(text);
     });
     if (el) {

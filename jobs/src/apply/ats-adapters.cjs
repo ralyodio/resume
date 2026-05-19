@@ -65,7 +65,7 @@ const ATS_ADAPTERS = {
   rippling: {
     id: 'rippling',
     name: 'Rippling',
-    initialApplyTexts: [/^apply now$/i, /^apply$/i],
+    initialApplyTexts: [/^apply now$/i, /^apply$/i, /^candidatar-se agora$/i],
     finalSubmitSelectors: ['button[type=submit]', 'button'],
     finalSubmitTexts: [/^apply$/i, /^submit application$/i, /^submit$/i],
     successTexts: [/you have successfully applied/i, /successfully applied/i],

@@ -32,14 +32,14 @@ function getProxyDispatcher() {
 }
 
 function withTimeout(url, opts={}) {
-  const { timeoutMs=DEFAULT_TIMEOUT_MS, headers, signal, dispatcher, ...rest } = opts;
+  const { timeoutMs=DEFAULT_TIMEOUT_MS, headers, signal, dispatcher, noProxy=false, ...rest } = opts;
   const controller = new AbortController();
   const timer = setTimeout(()=>controller.abort(new Error(`Fetch timed out after ${timeoutMs}ms: ${redactUrl(url)}`)), timeoutMs);
   if (signal) {
     if (signal.aborted) controller.abort(signal.reason);
     else signal.addEventListener('abort',()=>controller.abort(signal.reason),{once:true});
   }
-  const proxyDispatcher = dispatcher || getProxyDispatcher();
+  const proxyDispatcher = noProxy ? null : (dispatcher || getProxyDispatcher());
   return { request: { ...rest, ...(proxyDispatcher ? {dispatcher: proxyDispatcher} : {}), headers, signal: controller.signal }, done: () => clearTimeout(timer) };
 }
 
