@@ -119,11 +119,27 @@ async function stagehandBrowserApply({ job, payload, opts = {} }) {
     await page.goto(payload.url, { waitUntil: 'domcontentloaded' });
     await sleep(2000);
 
-    // Click initial apply button (job listing → actual form)
-    await actSafe(stagehand, 'click the "Apply", "Apply Now", or "Apply for this Job" button if one is visible');
-    await sleep(1500);
-    await actSafe(stagehand, 'click the "Apply", "Apply Now", or "Apply for this Job" button if one is visible');
-    await sleep(1500);
+    // Resolve aggregator listing → actual ATS form by extracting the Apply href
+    // (clicking opens a new tab which Stagehand doesn't follow)
+    const startHostname = new URL(payload.url).hostname;
+    const externalApplyHref = await page.evaluate((startHost) => {
+      const candidates = Array.from(document.querySelectorAll('a[href]'));
+      const applyLink = candidates.find(a => {
+        const text = (a.innerText || a.getAttribute('aria-label') || '').trim();
+        if (!/^(apply|apply now|apply for this job|apply for job|easy apply|apply here)$/i.test(text)) return false;
+        try { return new URL(a.href).hostname !== startHost; } catch { return false; }
+      });
+      return applyLink ? applyLink.href : null;
+    }, startHostname).catch(() => null);
+
+    if (externalApplyHref) {
+      await page.goto(externalApplyHref, { waitUntil: 'domcontentloaded' });
+      await sleep(2500);
+    } else {
+      // Fallback: try clicking if no direct href found
+      await actSafe(stagehand, 'click the "Apply", "Apply Now", or "Apply for this Job" button if one is visible');
+      await sleep(2000);
+    }
 
     const employerInfo = await extractSafe(stagehand, 'find the company or employer name on this page', z.object({
       employer: z.string().optional(),
