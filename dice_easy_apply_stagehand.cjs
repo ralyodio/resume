@@ -76,17 +76,30 @@ async function ensureLoggedIn(stagehand, z, page, context) {
   const password = process.env.DICE_PASSWORD;
   if (!email || !password) throw new Error('Not logged in and DICE_EMAIL/DICE_PASSWORD not set');
 
-  // Step 1: email
+  // Step 1: email — use pressSequentially to trigger React change events
   await page.goto('https://www.dice.com/dashboard/login', { waitUntil: 'domcontentloaded' });
   await sleep(1500);
-  await page.fill('input[type="email"], input[name="email"], input[autocomplete="username"]', email).catch(() => {});
-  await page.click('button[type="submit"], button').catch(() => {});
-  await sleep(1500);
+  const emailSel = 'input[type="email"], input[name="email"], input[autocomplete="username"], input[id*="email" i]';
+  await page.waitForSelector(emailSel, { timeout: 15000 }).catch(() => {});
+  await page.locator(emailSel).first().pressSequentially(email, { delay: 30 }).catch(() => {});
+  await sleep(500);
+  // Click Continue button
+  await page.evaluate(() => {
+    const btn = Array.from(document.querySelectorAll('button,[role="button"]')).find(b => /continue|next/i.test((b.innerText || b.getAttribute('aria-label') || '').trim()));
+    if (btn) { btn.click(); }
+  });
+  await sleep(2000);
 
   // Step 2: password
-  await page.fill('input[type="password"], input[name="password"]', password).catch(() => {});
-  await page.click('button[type="submit"], button').catch(() => {});
-  await sleep(4000);
+  const passSel = 'input[type="password"], input[name="password"], input[autocomplete="current-password"]';
+  await page.waitForSelector(passSel, { timeout: 10000 }).catch(() => {});
+  await page.locator(passSel).first().pressSequentially(password, { delay: 30 }).catch(() => {});
+  await sleep(500);
+  await page.evaluate(() => {
+    const btn = Array.from(document.querySelectorAll('button,[role="button"]')).find(b => /sign in|log in|login/i.test((b.innerText || b.getAttribute('aria-label') || '').trim()));
+    if (btn) { btn.click(); }
+  });
+  await sleep(5000);
 
   const afterText = await page.evaluate(() => document.body.innerText.slice(0, 300));
   if (/captcha|verification|multi-factor|security code/i.test(afterText))
