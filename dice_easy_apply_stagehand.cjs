@@ -158,29 +158,17 @@ async function scanJobs(stagehand, z, page, state) {
 }
 
 async function applyToJob(stagehand, z, page, job) {
-  // Visit job detail first to get actual application link and check title/company
-  await page.goto(job.url, { waitUntil: 'domcontentloaded' });
-  await sleep(3500);
-  const detail = await page.evaluate(() => {
-    const text = document.body.innerText;
-    const applyHref = Array.from(document.querySelectorAll('a[href*="/job-applications/"]')).map(a => a.href)[0] || '';
-    const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
-    const titleIdx = lines.findIndex(l => /^Apply$|^Applied$/.test(l));
-    const company = lines[titleIdx - 1] || '';
-    const title = titleIdx >= 0 ? lines[titleIdx + 1] : (document.title.split(' - ')[0] || '');
-    return { text, applyHref, title, company };
-  }).catch(() => ({ text: '', applyHref: '', title: '', company: '' }));
+  // Go directly to wizard — jobs came from Easy Apply filter so wizard should exist
+  const wizardUrl = `https://www.dice.com/job-applications/${job.id}/wizard`;
+  await page.goto(wizardUrl, { waitUntil: 'domcontentloaded' });
+  await sleep(5000);
 
-  if (detail.title) job.title = detail.title;
-  if (detail.company) job.company = detail.company;
-
-  if (!detail.applyHref && !/Apply/i.test(detail.text)) {
-    return { status: 'skipped', reason: 'no Dice application link on detail page' };
-  }
-
-  const applyUrl = detail.applyHref || `https://www.dice.com/job-applications/${job.id}/wizard`;
-  await page.goto(applyUrl.includes('/wizard') ? applyUrl : applyUrl + (applyUrl.includes('?') ? '&' : '/') + 'wizard', { waitUntil: 'domcontentloaded' });
-  await sleep(4500);
+  // Try to extract title/company from whatever page loaded
+  const pageInfo = await page.evaluate(() => {
+    const lines = document.body.innerText.split('\n').map(s => s.trim()).filter(Boolean);
+    return { title: document.title.split(' - ')[0] || '', lines: lines.slice(0, 20).join(' | ') };
+  }).catch(() => ({ title: '', lines: '' }));
+  if (pageInfo.title && !job.title.includes(pageInfo.title.slice(0, 20))) job.title = pageInfo.title;
 
   // Dismiss dialogs via direct JS
   await page.evaluate(() => {
@@ -200,16 +188,20 @@ async function applyToJob(stagehand, z, page, job) {
     return { status: 'skipped', reason: `application wizard not recognized: ${wizardText.slice(0, 80).replace(/\n/g, ' ')}` };
   }
 
-  // Upload resume
-  const resumeInputs = await page.$$('input[type="file"]');
-  if (resumeInputs.length > 0 && fs.existsSync(RESUME_PDF)) {
-    try { await resumeInputs[0].setInputFiles(RESUME_PDF); await sleep(2000); } catch {}
+  // Count file inputs
+  const fileInputCount = await page.evaluate(() => document.querySelectorAll('input[type="file"]').length).catch(() => 0);
+
+  // Upload resume using page-level setInputFiles (no element handle needed)
+  if (fileInputCount > 0 && fs.existsSync(RESUME_PDF)) {
+    try { await page.setInputFiles('input[type="file"]:first-of-type', RESUME_PDF); await sleep(2000); } catch (e) {
+      // fallback: try first match without :first-of-type pseudo
+      try { await page.setInputFiles('input[type="file"]', RESUME_PDF); await sleep(2000); } catch {}
+    }
   }
 
-  // Upload cover letter
-  const allInputs = await page.$$('input[type="file"]');
-  if (allInputs.length > 1 && fs.existsSync(COVER_PDF)) {
-    try { await allInputs[allInputs.length - 1].setInputFiles(COVER_PDF); await sleep(2000); } catch {}
+  // Upload cover letter to last file input if multiple exist
+  if (fileInputCount > 1 && fs.existsSync(COVER_PDF)) {
+    try { await page.setInputFiles('input[type="file"]:last-of-type', COVER_PDF); await sleep(2000); } catch {}
   }
 
   // Verify uploads via page text
@@ -250,7 +242,7 @@ async function applyToJob(stagehand, z, page, job) {
       if (/^(Dismiss|Close|No Thanks|Not now|Cancel|Got it|OK|Okay)$/i.test(t)) el.click();
     }
   }).catch(() => {});
-  await page.keyboard.press('Enter').catch(() => {});
+  await page.evaluate(() => document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))).catch(() => {});
   await sleep(2000);
 
   const doneText = await page.evaluate(() => document.body.innerText).catch(() => '');
