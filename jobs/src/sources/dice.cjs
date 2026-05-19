@@ -11,8 +11,11 @@ const source = {
   runnerScript: '/home/ettinger/Desktop/resume/dice_easy_apply_daily.cjs',
 };
 
+function runnerScript() {
+  return process.env.BROWSERBASE_API_KEY ? 'dice_easy_apply_stagehand.cjs' : 'dice_easy_apply_daily.cjs';
+}
 function buildRunnerPlanForDice(opts={}) {
-  return buildRunnerPlan({ id: source.id, script: 'dice_easy_apply_daily.cjs', ...opts });
+  return buildRunnerPlan({ id: source.id, script: runnerScript(), ...opts });
 }
 
 async function searchJobs(opts={}) {

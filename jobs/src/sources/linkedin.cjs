@@ -11,8 +11,11 @@ const source = {
   runnerScript: '/home/ettinger/Desktop/resume/linkedin_easy_apply_daily.cjs',
 };
 
+function runnerScript() {
+  return process.env.BROWSERBASE_API_KEY ? 'linkedin_easy_apply_stagehand.cjs' : 'linkedin_easy_apply_daily.cjs';
+}
 function buildRunnerPlanForLinkedIn(opts={}) {
-  return buildRunnerPlan({ id: source.id, script: 'linkedin_easy_apply_daily.cjs', ...opts });
+  return buildRunnerPlan({ id: source.id, script: runnerScript(), ...opts });
 }
 
 async function searchJobs(opts={}) {
