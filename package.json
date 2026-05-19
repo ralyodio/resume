@@ -8,16 +8,23 @@
     "test": "mocha tests/**/*.test.js",
     "generate": "./resume.sh"
   },
-  "keywords": ["resume", "pdf", "html", "generator"],
+  "keywords": [
+    "resume",
+    "pdf",
+    "html",
+    "generator"
+  ],
   "author": "Anthony Ettinger",
   "license": "ISC",
   "description": "Modern resume generator that converts markdown to compelling HTML and PDF",
   "dependencies": {
+    "@browserbasehq/stagehand": "^3.4.0",
+    "marked": "^14.1.2",
     "puppeteer": "^23.11.1",
-    "marked": "^14.1.2"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "mocha": "^10.7.3",
-    "chai": "^5.1.1"
+    "chai": "^5.1.1",
+    "mocha": "^10.7.3"
   }
 }

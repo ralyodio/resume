@@ -4,6 +4,7 @@ const { appendAuditEvent } = require('../audit/audit-log.cjs');
 const { ATS_ADAPTERS, getAtsAdapter } = require('./ats-adapters.cjs');
 const { generateCoverLetter, normalizeCoverLetterText } = require('../cover/generate-cover-letter.cjs');
 const { fetchText } = require('../util/fetch.cjs');
+const { stagehandBrowserApply } = require('./stagehand-apply.cjs');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const RESUME4_PATH = process.env.RESUME_PDF || path.join(REPO_ROOT, 'anthony.ettinger.resume4.pdf');
@@ -1809,7 +1810,9 @@ async function autoApplyExternal({job = {}, dryRun = true, submit = false, store
     }
   }
   if (dryRun || opts.dryTest || process.env.HERMES_ATS_DRY_TEST === '1') return {...base, status:'prepared', reason:'dry-run'};
-  const result = await browserApply({job,payload,opts:{...opts,submit,storeDir}});
+  const useStagehand = Boolean(process.env.BROWSERBASE_API_KEY) || process.env.HERMES_BROWSER_DRIVER === 'stagehand';
+  const applyFn = useStagehand ? stagehandBrowserApply : browserApply;
+  const result = await applyFn({job,payload,opts:{...opts,submit,storeDir}});
   return {...base, ...result};
 }
 
