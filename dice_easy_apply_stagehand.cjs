@@ -23,7 +23,7 @@ const STATE_FILE = path.join(STATE_DIR, 'state.json');
 const LOG_FILE = path.join(STATE_DIR, 'results.jsonl');
 const COOKIE_FILE = path.join(os.homedir(), '.cache/hermes-dice-cookies.json');
 const MAX_APPLY = Number(process.env.MAX_APPLY || 999);
-const MAX_SCAN = Number(process.env.MAX_SCAN || 200);
+const MAX_SCAN = Number(process.env.MAX_SCAN || 500);
 const DRY_RUN = process.env.DRY_RUN === '1';
 const SEARCHES = (process.env.SEARCHES || 'claude|react').split('|').map(s => s.trim()).filter(Boolean);
 const ACT_TIMEOUT = Number(process.env.STAGEHAND_ACT_TIMEOUT_MS || 45000);
@@ -127,31 +127,39 @@ function jobIdFromUrl(url) {
 async function scanJobs(stagehand, z, page, state) {
   const found = [];
   for (const q of SEARCHES) {
-    const url = `https://www.dice.com/jobs?filters.easyApply=true&filters.employmentType=CONTRACTS&filters.workplaceTypes=Remote&q=${encodeURIComponent(q)}`;
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
-    await sleep(5000);
-    await actSafe(stagehand, 'dismiss or close any popup dialogs or cookie banners if present');
+    let pageNum = 1;
+    while (found.length < MAX_SCAN) {
+      const url = `https://www.dice.com/jobs?filters.easyApply=true&filters.employmentType=CONTRACTS&filters.workplaceTypes=Remote&q=${encodeURIComponent(q)}&page=${pageNum}`;
+      await page.goto(url, { waitUntil: 'domcontentloaded' });
+      await sleep(pageNum === 1 ? 5000 : 3000);
+      if (pageNum === 1) await actSafe(stagehand, 'dismiss or close any popup dialogs or cookie banners if present');
 
-    // Use direct JS evaluation — more reliable than extract() for structured card lists
-    const items = await page.evaluate(() => {
-      const byHref = new Map();
-      for (const a of Array.from(document.querySelectorAll('a[href*="/job-detail/"]'))) {
-        const href = a.href.split('?')[0];
-        if (!byHref.has(href)) byHref.set(href, { href, texts: [] });
-        const t = (a.innerText || a.getAttribute('aria-label') || '').trim();
-        if (t) byHref.get(href).texts.push(t);
+      const items = await page.evaluate(() => {
+        const byHref = new Map();
+        for (const a of Array.from(document.querySelectorAll('a[href*="/job-detail/"]'))) {
+          const href = a.href.split('?')[0];
+          if (!byHref.has(href)) byHref.set(href, { href, texts: [] });
+          const t = (a.innerText || a.getAttribute('aria-label') || '').trim();
+          if (t) byHref.get(href).texts.push(t);
+        }
+        return Array.from(byHref.values());
+      }).catch(() => []);
+
+      if (!items.length) break; // no more results for this query
+
+      let newOnPage = 0;
+      for (const it of items) {
+        const id = jobIdFromUrl(it.href);
+        if (!id) continue;
+        if (state.applied?.[id] || state.alreadySubmitted?.[id] || state.skipped?.[id]) continue;
+        if (found.find(x => x.id === id)) continue;
+        found.push({ id, title: it.texts[0] || 'Dice job', company: '', search: q, url: it.href });
+        newOnPage++;
+        if (found.length >= MAX_SCAN) return found;
       }
-      return Array.from(byHref.values());
-    }).catch(() => []);
 
-    for (const it of items) {
-      const id = jobIdFromUrl(it.href);
-      if (!id) continue;
-      if (state.applied?.[id] || state.alreadySubmitted?.[id] || state.skipped?.[id]) continue;
-      if (found.find(x => x.id === id)) continue;
-      // URL already has filters.easyApply=true — no need to re-check text
-      found.push({ id, title: it.texts[0] || 'Dice job', company: '', search: q, url: it.href });
-      if (found.length >= MAX_SCAN) return found;
+      if (newOnPage === 0) break; // all results on this page already seen
+      pageNum++;
     }
   }
   return found;
