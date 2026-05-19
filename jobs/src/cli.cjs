@@ -97,7 +97,7 @@ async function runEasyApplyRotation({args,store}){
     if (dryRun) { console.log(`easy-apply dry-run\t${s.id}\t${cmd}`); continue; }
     console.log(`easy-apply running\t${s.id}\t${plan.command}`);
     const result=spawnSync(process.execPath,plan.args,{cwd:plan.cwd,stdio:'inherit',env:{...process.env,...plan.env}});
-    if(result.status!==0) throw new Error(`${s.id} easy-apply runner failed with ${result.status}`);
+    if(result.status!==0) console.error(`easy-apply failed\t${s.id}\texit=${result.status} (continuing)`);
   }
 }
 

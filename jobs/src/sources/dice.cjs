@@ -15,7 +15,9 @@ function runnerScript() {
   return process.env.BROWSERBASE_API_KEY ? 'dice_easy_apply_stagehand.cjs' : 'dice_easy_apply_daily.cjs';
 }
 function buildRunnerPlanForDice(opts={}) {
-  return buildRunnerPlan({ id: source.id, script: runnerScript(), ...opts });
+  // Remote is already a URL filter in the Dice script — strip it from the keyword query
+  const query = (opts.query || '').replace(/\bremote\b/gi, '').replace(/\s+/g, ' ').trim();
+  return buildRunnerPlan({ id: source.id, script: runnerScript(), ...opts, query });
 }
 
 async function searchJobs(opts={}) {
