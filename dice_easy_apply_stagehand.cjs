@@ -92,33 +92,38 @@ async function ensureLoggedIn(stagehand, z, page, context) {
   await saveCookies(context);
 }
 
+function jobIdFromUrl(url) {
+  return (url.match(/job-detail\/([^/?#]+)/) || url.match(/job-applications\/([^/?#]+)/))?.[1] || null;
+}
+
 async function scanJobs(stagehand, z, page, state) {
   const found = [];
   for (const q of SEARCHES) {
     const url = `https://www.dice.com/jobs?filters.easyApply=true&filters.workplaceTypes=Remote&q=${encodeURIComponent(q)}`;
     await page.goto(url, { waitUntil: 'domcontentloaded' });
-    await sleep(4000);
-
-    // Dismiss any dialogs
+    await sleep(5000);
     await actSafe(stagehand, 'dismiss or close any popup dialogs or cookie banners if present');
 
-    const results = await extractSafe(stagehand,
-      'Extract all job listings visible on this Dice search results page. For each job get the job ID from the URL (the GUID after /job-detail/ or /job-applications/), the job title, company name, and the full job URL.',
-      z.object({
-        jobs: z.array(z.object({
-          id: z.string(),
-          title: z.string(),
-          company: z.string().optional(),
-          url: z.string(),
-        }))
-      })
-    );
+    // Use direct JS evaluation — more reliable than extract() for structured card lists
+    const items = await page.evaluate(() => {
+      const byHref = new Map();
+      for (const a of Array.from(document.querySelectorAll('a[href*="/job-detail/"]'))) {
+        const href = a.href.split('?')[0];
+        if (!byHref.has(href)) byHref.set(href, { href, texts: [] });
+        const t = (a.innerText || a.getAttribute('aria-label') || '').trim();
+        if (t) byHref.get(href).texts.push(t);
+      }
+      return Array.from(byHref.values());
+    }).catch(() => []);
 
-    for (const j of results?.jobs || []) {
-      if (!j.id || !j.url) continue;
-      if (state.applied?.[j.id] || state.alreadySubmitted?.[j.id] || state.skipped?.[j.id]) continue;
-      if (found.find(x => x.id === j.id)) continue;
-      found.push({ id: j.id, title: j.title, company: j.company || '', search: q, url: j.url });
+    for (const it of items) {
+      const id = jobIdFromUrl(it.href);
+      if (!id) continue;
+      if (state.applied?.[id] || state.alreadySubmitted?.[id] || state.skipped?.[id]) continue;
+      if (found.find(x => x.id === id)) continue;
+      const label = it.texts.join(' | ');
+      if (!/easy apply/i.test(label)) continue;
+      found.push({ id, title: it.texts[0] || 'Dice job', company: '', search: q, url: it.href });
       if (found.length >= MAX_SCAN) return found;
     }
   }

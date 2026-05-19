@@ -107,25 +107,25 @@ async function scanJobs(stagehand, z, page, state) {
       await sleep(800);
     }
 
-    const jobs = await extractSafe(stagehand,
-      'Extract all visible job listings on this LinkedIn jobs search page. For each job get the job ID from the URL (the number after /jobs/view/), the job title, company name, and whether it shows "Easy Apply" and "Remote".',
-      z.object({
-        jobs: z.array(z.object({
-          id: z.string(),
-          title: z.string(),
-          company: z.string().optional(),
-          isEasyApply: z.boolean(),
-          isRemote: z.boolean(),
-          url: z.string().optional(),
-        }))
-      })
-    );
+    // Direct JS scraping — more reliable than extract() for card lists
+    const cards = await page.evaluate(() => {
+      const results = [];
+      for (const a of Array.from(document.querySelectorAll('a[href*="/jobs/view/"]'))) {
+        const m = a.href.match(/\/jobs\/view\/(\d+)/);
+        if (!m) continue;
+        const card = a.closest('li, [data-job-id]') || a.parentElement;
+        const text = (card?.innerText || a.innerText || '').replace(/\s+/g, ' ').trim();
+        if (!/easy apply/i.test(text)) continue;
+        const title = (a.innerText || '').replace(/\s+/g, ' ').trim() || 'LinkedIn job';
+        results.push({ id: m[1], title, text });
+      }
+      return results;
+    }).catch(() => []);
 
-    for (const j of jobs?.jobs || []) {
-      if (!j.id || !j.isEasyApply || !j.isRemote) continue;
+    for (const j of cards) {
       if (state.applied?.[j.id] || state.skipped?.[j.id]) continue;
       if (found.find(x => x.id === j.id)) continue;
-      found.push({ id: j.id, title: j.title, company: j.company || '', search: keywords, url: `https://www.linkedin.com/jobs/view/${j.id}/` });
+      found.push({ id: j.id, title: j.title, company: '', search: keywords, url: `https://www.linkedin.com/jobs/view/${j.id}/` });
       if (found.length >= MAX_SCAN) return found;
     }
   }
