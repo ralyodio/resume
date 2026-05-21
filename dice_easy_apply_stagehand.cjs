@@ -129,7 +129,7 @@ async function scanJobs(stagehand, z, page, state) {
   for (const q of SEARCHES) {
     let pageNum = 1;
     while (found.length < MAX_SCAN) {
-      const url = `https://www.dice.com/jobs?filters.easyApply=true&filters.employmentType=CONTRACTS&filters.workplaceTypes=Remote&q=${encodeURIComponent(q)}&page=${pageNum}`;
+      const url = `https://www.dice.com/jobs?filters.easyApply=true&filters.workplaceTypes=Remote&q=${encodeURIComponent(q)}&page=${pageNum}`;
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       await sleep(pageNum === 1 ? 5000 : 3000);
       if (pageNum === 1) await actSafe(stagehand, 'dismiss or close any popup dialogs or cookie banners if present');
