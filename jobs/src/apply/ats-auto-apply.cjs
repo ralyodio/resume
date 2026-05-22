@@ -172,8 +172,12 @@ function classifyScreeningAnswer(question, choices = []) {
   if (has(/(?:how|what).*(?:authorized|authorised|work authorization|work authori[sz]ation|work eligibility|citizenship)/) || has(/if.*yes.*previous.*authorized/)) {
     return choice(/us citizenship|u\.?s\.? citizen|citizen/i) || 'US Citizenship';
   }
-  if (/(?:authorized|authorised|eligible|eligibility|legal right|citizen|green card).*(?:work|employment|living|resid).*(?:united states|u\.?s\.?|usa|50 states)/.test(q) || /(?:work|employment|living|resid).*(?:authorized|authorised|eligible|citizen|green card).*(?:united states|u\.?s\.?|usa|50 states)/.test(q)) return 'yes';
-  if (/(?:need|require|requires|requiring).*(?:visa|sponsor|sponsorship)/.test(q) || /(?:visa|sponsor|sponsorship).*(?:need|require|requires|requiring)/.test(q)) return 'no';
+  // Work authorization — answer YES for any "are you authorized/legally allowed/eligible to work in US"
+  if (/(?:are you|do you have|will you).*(?:authorized|authorised|legally|allowed|eligible|permitted).*(?:work|employment)/.test(q)) return 'yes';
+  if (/(?:authorized|authorised|eligible|eligibility|legal right|citizen|green card).*(?:work|employment|living|resid).*(?:united states|u\.?s\.?|usa|50 states|us\b)/.test(q) || /(?:work|employment|living|resid).*(?:authorized|authorised|eligible|citizen|green card).*(?:united states|u\.?s\.?|usa|50 states|us\b)/.test(q)) return 'yes';
+  // Visa sponsorship — answer NO for any phrasing of "do you need/require sponsorship"
+  if (/(?:visa|sponsor|sponsorship)/.test(q) && /(?:need|require|requires|requiring|seek|seeking|future|now|currently|will you)/.test(q)) return 'no';
+  if (/sponsor.*(?:visa|h-?1b|employment)/.test(q)) return 'no';
   if (/acceptable.*(?:salary|compensation|pay).*range/.test(q) || /(?:salary|compensation|pay).*range.*acceptable/.test(q)) return 'no';
   if (has(/(?:previously|formerly|ever).*(?:employed|worked).*(?:with|for|at)\b/) || has(/(?:employed|worked).*(?:with|for|at).*(?:previously|formerly|before)/) || has(/(?:recruiting process|interviewed|spoken to anyone).*(?:role|position|company|associates)/)) return 'no';
   if (has(/family|friends?.*(?:currently )?employed|related to anyone at the company/)) return 'no';
@@ -843,8 +847,10 @@ async function fillAdapterSpecificFields(page, payload) {
       if (has(/full[- ]time employment|interested in full[- ]time/)) return 'yes';
       if (has(/(?:text|sms) messages?|receiving texts?|consent to receiving text|do not consent to receiving text/)) return 'no';
       if (has(/(?:how|what).*(?:authorized|authorised|work authorization|work authori[sz]ation|work eligibility|citizenship)/) || has(/if.*yes.*previous.*authorized/)) return choice(/us citizenship|u\.?s\.? citizen|citizen/i) || 'US Citizenship';
-  if (/(?:authorized|authorised|eligible|eligibility|legal right|citizen|green card).*(?:work|employment|living|resid).*(?:united states|u\.?s\.?|usa|50 states)/.test(q) || /(?:work|employment|living|resid).*(?:authorized|authorised|eligible|citizen|green card).*(?:united states|u\.?s\.?|usa|50 states)/.test(q)) return 'yes';
-  if (/(?:need|require|requires|requiring).*(?:visa|sponsor|sponsorship)/.test(q) || /(?:visa|sponsor|sponsorship).*(?:need|require|requires|requiring)/.test(q)) return 'no';
+  if (/(?:are you|do you have|will you).*(?:authorized|authorised|legally|allowed|eligible|permitted).*(?:work|employment)/.test(q)) return 'yes';
+  if (/(?:authorized|authorised|eligible|eligibility|legal right|citizen|green card).*(?:work|employment|living|resid).*(?:united states|u\.?s\.?|usa|50 states|us\b)/.test(q) || /(?:work|employment|living|resid).*(?:authorized|authorised|eligible|citizen|green card).*(?:united states|u\.?s\.?|usa|50 states|us\b)/.test(q)) return 'yes';
+  if (/(?:visa|sponsor|sponsorship)/.test(q) && /(?:need|require|requires|requiring|seek|seeking|future|now|currently|will you)/.test(q)) return 'no';
+  if (/sponsor.*(?:visa|h-?1b|employment)/.test(q)) return 'no';
   if (/acceptable.*(?:salary|compensation|pay).*range/.test(q) || /(?:salary|compensation|pay).*range.*acceptable/.test(q)) return 'no';
       if (has(/(?:previously|formerly|ever).*(?:employed|worked).*(?:with|for|at)\b/) || has(/(?:employed|worked).*(?:with|for|at).*(?:previously|formerly|before)/) || has(/(?:recruiting process|interviewed|spoken to anyone).*(?:role|position|company|associates)/)) return 'no';
       if (has(/(?:ccpa|privacy|consumer privacy|disclosure|policy).*(?:acknowledge|provided|consent|agree)/) || has(/(?:acknowledge|provided|consent|agree).*(?:ccpa|privacy|consumer privacy|disclosure|policy)/)) return 'yes';
