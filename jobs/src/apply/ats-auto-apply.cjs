@@ -1722,6 +1722,21 @@ async function browserApply({job,payload,opts}) {
         await page.waitForNavigation?.({waitUntil:'networkidle2',timeout:opts.timeoutMs||30000}).catch(()=>sleep(8000));
         const settleState = await waitForSubmitToSettle(page, opts);
         if (settleState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
+        // Post-submit form-validation errors: ATS shows "A response is required"
+        // or "application contains errors". Fields exist but our filler missed them.
+        // Run the AI resolver against the now-error-flagged form, then retry.
+        if (settleState === 'errors' && process.env.HERMES_AI_FORM_RESOLVER === '1') {
+          try {
+            const r = await resolveBlockedForm({ page, job, payload, blockers: ['unknown-required:post-submit-errors'], opts });
+            if (r?.resolved) {
+              console.error(`[ai-resolver] post-submit recovery: applied ${r.applied}/${r.total} answers`);
+              await sleep(2000);
+              continue; // retry submit loop
+            }
+          } catch (err) {
+            console.error(`[ai-resolver] post-submit error: ${err.message}`);
+          }
+        }
         const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
         if (verifiedState === 'success' || verifiedState === true) return {status:'submitted', reason:'submission-verified'};
         if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
