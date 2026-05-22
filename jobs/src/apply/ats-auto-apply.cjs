@@ -5,6 +5,7 @@ const { ATS_ADAPTERS, getAtsAdapter } = require('./ats-adapters.cjs');
 const { generateCoverLetter, normalizeCoverLetterText } = require('../cover/generate-cover-letter.cjs');
 const { fetchText } = require('../util/fetch.cjs');
 const { stagehandBrowserApply } = require('./stagehand-apply.cjs');
+const { resolveBlockedForm } = require('./ai-form-resolver.cjs');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const RESUME4_PATH = process.env.RESUME_PDF || path.join(REPO_ROOT, 'anthony.ettinger.resume4.pdf');
@@ -1680,6 +1681,25 @@ async function browserApply({job,payload,opts}) {
       if (handoff?.status) return handoff;
       if (handoff?.action === 'proceed') blockers = await findBlockers(page);
       if (blockers.includes('captcha')) return {status:'needs-human-review', reason:'captcha-unsolved'};
+    }
+    if (blockers.length) {
+      // AI form resolver: when blockers are missing/unknown required fields,
+      // dump DOM + resume + job context to Claude and apply suggested answers.
+      const aiTriggered = blockers.some(b => /unknown-required|missing-required-common/.test(b));
+      if (aiTriggered && process.env.HERMES_AI_FORM_RESOLVER === '1') {
+        try {
+          const r = await resolveBlockedForm({ page, job, payload, blockers, opts });
+          if (r?.resolved) {
+            console.error(`[ai-resolver] applied ${r.applied}/${r.total} answers; re-checking blockers`);
+            await sleep(2000);
+            blockers = await findBlockers(page);
+          } else if (r?.reason) {
+            console.error(`[ai-resolver] not resolved: ${r.reason}`);
+          }
+        } catch (err) {
+          console.error(`[ai-resolver] error: ${err.message}`);
+        }
+      }
     }
     if (blockers.length) {
       const reason = blockers.join(';');
