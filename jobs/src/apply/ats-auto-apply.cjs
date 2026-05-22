@@ -1265,12 +1265,15 @@ async function submitDiagnostics(page) {
 async function verifySubmission(page, beforeUrl) {
   return page.evaluate((priorUrl) => {
     const text = document.body ? document.body.innerText.toLowerCase() : '';
-    const successText = /application submitted|thank you for applying|thanks for applying|successfully submitted|we received your application|your application has been received|application complete|we have received your application|application has been submitted|application sent|your application was sent|we'll be in touch|we will be in touch|we'll review your application|we will review your application|thanks for your interest|thank you for your application|you've successfully applied|you have successfully applied|already applied to this job|you've already applied|you have already applied/.test(text);
+    const alreadyApplied = /already applied to this job|already applied for this job|you've already applied|you have already applied|application already submitted|you already applied|previously applied to this position|you submitted an application/.test(text);
+    const successText = !alreadyApplied && /application submitted|thank you for applying|thanks for applying|successfully submitted|we received your application|your application has been received|application complete|we have received your application|application has been submitted|application sent|your application was sent|we'll be in touch|we will be in touch|we'll review your application|we will review your application|thanks for your interest|thank you for your application|you've successfully applied|you have successfully applied/.test(text);
     const spamRejected = /flagged as possible spam|couldn't submit your application|we couldn't submit your application/.test(text);
     const urlChangedToSuccess = location.href !== priorUrl && /(thank|success|submitted|confirmation|complete|applied)/i.test(location.href);
     const successElement = document.querySelector('[class*="success"], [class*="complete"], [class*="confirmation"], [data-testid*="success"]');
     const hasSuccessElement = successElement && !!(successElement.offsetWidth || successElement.offsetHeight);
-    return spamRejected ? 'spam-blocked' : ((successText || urlChangedToSuccess || hasSuccessElement) ? 'success' : 'pending');
+    if (spamRejected) return 'spam-blocked';
+    if (alreadyApplied) return 'already-applied';
+    return (successText || urlChangedToSuccess || hasSuccessElement) ? 'success' : 'pending';
   }, beforeUrl).catch(() => 'pending');
 }
 async function waitForVerifiedSubmission(page, beforeUrl, opts = {}) {
@@ -1633,6 +1636,12 @@ async function browserApply({job,payload,opts}) {
     else console.error('[ats] employer not verified from job page; using generic hiring-team cover letter');
     await debugStep(page, 'after-goto');
     await dismissCookieBanners(page);
+    // Pre-fill check: if the application page already shows "already applied" text,
+    // skip the fill/submit dance and mark applied immediately.
+    {
+      const earlyState = await verifySubmission(page, payload.url || '').catch(() => 'pending');
+      if (earlyState === 'already-applied') return {status:'applied', reason:'already-applied-pre-fill'};
+    }
     if (await clickInitialApplyLink(page, payload.ats)) await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||30000}).catch(()=>sleep(3000));
     if (await clickInitialApplyLink(page, payload.ats)) await page.waitForNavigation({waitUntil:'domcontentloaded',timeout:opts.timeoutMs||30000}).catch(()=>sleep(3000));
     const formEmployer = await extractEmployerFromJobPage(page);
@@ -1739,6 +1748,7 @@ async function browserApply({job,payload,opts}) {
         }
         const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
         if (verifiedState === 'success' || verifiedState === true) return {status:'submitted', reason:'submission-verified'};
+        if (verifiedState === 'already-applied') return {status:'applied', reason:'already-applied-detected'};
         if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
       } else {
         const progressed = await clickProgressButton(page);
@@ -1769,6 +1779,7 @@ async function browserApply({job,payload,opts}) {
         await sleep(5000);
         const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
         if (verifiedState === 'success' || verifiedState === true) return {status:'submitted', reason:'submission-verified'};
+        if (verifiedState === 'already-applied') return {status:'applied', reason:'already-applied-detected'};
         if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
         continue;
       }
@@ -1808,6 +1819,7 @@ async function browserApply({job,payload,opts}) {
     if (settleState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
     const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
     if (verifiedState === 'success' || verifiedState === true) return {status:'submitted', reason:'submission-verified'};
+    if (verifiedState === 'already-applied') return {status:'applied', reason:'already-applied-detected'};
     if (verifiedState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
     const unverifiedResult = {status:'needs-human-review', reason:`submission-unverified:${await submitDiagnostics(page)}`};
     const handoff = await manualHandoff({page, job, payload, stage:'submission-unverified', reason:unverifiedResult.reason, opts});
