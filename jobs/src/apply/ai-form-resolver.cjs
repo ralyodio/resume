@@ -274,7 +274,8 @@ async function applyAnswers(page, answers) {
   for (const { selector, value } of answers) {
     if (!selector || value === 'SKIP' || value == null) continue;
     try {
-      const ok = await page.evaluate(({ sel, val }) => {
+      const ok = await page.evaluate(async ({ sel, val }) => {
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         const el = document.querySelector(sel);
         if (!el) return false;
         const tag = el.tagName.toLowerCase();
@@ -288,16 +289,10 @@ async function applyAnswers(page, answers) {
           e.dispatchEvent(new Event('blur', { bubbles: true }));
         };
         if (type === 'radio' || type === 'checkbox') {
-          // Find the matching radio in the group by value
           const group = document.querySelectorAll(`input[type="${type}"][name="${CSS.escape(el.name)}"]`);
           for (const r of group) {
-            if (r.value === val) {
-              r.click();
-              r.dispatchEvent(new Event('change', { bubbles: true }));
-              return true;
-            }
+            if (r.value === val) { r.click(); r.dispatchEvent(new Event('change', { bubbles: true })); return true; }
           }
-          // Fallback: just click the selected one
           el.click();
           return true;
         }
@@ -309,7 +304,40 @@ async function applyAnswers(page, answers) {
         setter(el, val);
         return true;
       }, { sel: selector, val: String(value) });
-      if (ok) applied++;
+      if (ok) { applied++; continue; }
+
+      // Fallback: maybe it's a React-style custom dropdown wrapper.
+      // Click the wrapper, wait for options, click the option matching the value.
+      const clickResult = await page.evaluate(async ({ sel, val }) => {
+        const el = document.querySelector(sel);
+        if (!el) return false;
+        // Click the element or nearest button/role=combobox
+        const wrapper = el.closest('button,[role="combobox"],[role="button"],[class*="select"],[class*="dropdown"]') || el;
+        wrapper.scrollIntoView({block:'center'});
+        wrapper.click();
+        return true;
+      }, { sel: selector, val: String(value) });
+      if (!clickResult) continue;
+      await new Promise(r => setTimeout(r, 600));
+      // Find an option in the freshly opened menu matching value (case-insensitive substring)
+      const picked = await page.evaluate(async ({ val }) => {
+        const needle = String(val).toLowerCase();
+        const candidates = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, [class*="option"]'))
+          .filter(el => {
+            const r = el.getBoundingClientRect();
+            const s = window.getComputedStyle(el);
+            return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+          });
+        for (const c of candidates) {
+          const txt = (c.innerText || c.textContent || '').trim().toLowerCase();
+          if (txt && (txt === needle || txt.includes(needle) || needle.includes(txt))) {
+            c.click();
+            return true;
+          }
+        }
+        return false;
+      }, { val: String(value) });
+      if (picked) applied++;
     } catch {}
   }
   return applied;
