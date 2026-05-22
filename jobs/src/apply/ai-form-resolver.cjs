@@ -161,6 +161,10 @@ function applicantContext() {
 
 function buildPrompt({ resume, job, fields }) {
   const applicant = applicantContext();
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  const twoWeeks = new Date(today.getTime() + 14*86400000).toISOString().slice(0,10);
+  const oneMonth = new Date(today.getTime() + 30*86400000).toISOString().slice(0,10);
   return [
     {
       role: 'user',
@@ -168,6 +172,9 @@ function buildPrompt({ resume, job, fields }) {
 1. The candidate's resume (markdown)
 2. The job title/company/description
 3. A list of required form fields with labels, types, and options
+
+Today's date: ${todayStr}. For "earliest start date" / "available start date" / "when can you start" — use a date roughly 2 weeks from today (${twoWeeks}) or up to 1 month out (${oneMonth}). NEVER use a date in the past.
+Date format: match the placeholder shown (mm/dd/yyyy → "${twoWeeks.split('-')[1]}/${twoWeeks.split('-')[2]}/${twoWeeks.split('-')[0]}", yyyy-mm-dd → "${twoWeeks}").
 
 Return STRICT JSON: an array of {selector, value} objects. Rules:
 - "value" for text/textarea/tel/email/url/number = the exact string to type
