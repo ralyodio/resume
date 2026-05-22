@@ -156,6 +156,11 @@ async function applyApproved(jobs){
       const r=await openExternalApplication({job:current,dryRun:false,submit:true,storeDir:store.storeDir,headless:process.env.HERMES_PUPPETEER_HEADLESS !== '0' && process.env.HERMES_PUPPETEER_HEADLESS !== 'false',timeoutMs:Number(process.env.HERMES_PUPPETEER_NAV_TIMEOUT_MS || 60000)});
       console.log(`APPLY_RESULT\t${r.status}\t${current.title}\t${current.company}\t${r.ats||''}\t${r.url||''}\t${r.reason||''}`);
       if(r.status==='submitted' || r.status==='applied') { store.markApplied(current.id,{applyResult:r}); submitted++; }
+      // Account-required sites: permanently skip — we don't handle account creation.
+      else if((r.reason||'').includes('login') || (r.reason||'').includes('account-required') || (r.reason||'').includes('sign-in-required')) {
+        store.transition(current.id,'skipped',{applyResult:r, skipReason:'account-required'});
+        failed++;
+      }
       else if(r.status==='needs-human-review' || r.status==='unsupported') { store.transition(current.id,'needs-human-review',{applyResult:r}); review++; }
       else if(r.status==='failed') { store.markFailed(current.id,r.reason||'apply failed'); failed++; }
       else { store.transition(current.id,'needs-human-review',{applyResult:r}); review++; }
