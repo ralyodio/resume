@@ -88,7 +88,8 @@ async function searchAndApprove(){
     let candidates=[];
     try {
       const jobs=[];
-      for (const target of valueserp.ATS_TARGETS.filter(t=>t.id!=='email' && !(process.env.HERMES_DISABLE_ASHBY === '1' && t.id === 'ashby'))) {
+      const targets = valueserp.ATS_TARGETS.filter(t=>t.id!=='email' && !(process.env.HERMES_DISABLE_ASHBY === '1' && t.id === 'ashby'));
+      const results = await Promise.all(targets.map(async target => {
         console.log(`SEARCH_TARGET\t${query}\t${target.id}`);
         try {
           const timeoutMs = Number(process.env.VALUESERP_TARGET_TIMEOUT_MS || 90000);
@@ -96,11 +97,13 @@ async function searchAndApprove(){
             valueserp.searchTarget(target,{query, remoteOnly:true, usaOnly:true, limit:PER_QUERY, maxPages:Number(process.env.VALUESERP_MAX_PAGES || 3), timeoutMs:Number(process.env.VALUESERP_FETCH_TIMEOUT_MS || 20000), signal})
           );
           console.log(`SEARCH_TARGET_DONE\t${query}\t${target.id}\tfound=${got.length}`);
-          jobs.push(...got);
+          return got;
         } catch (err) {
           console.error(`SEARCH_TARGET_FAILED\t${query}\t${target.id}\t${sanitizeMessage(err.message)}`);
+          return [];
         }
-      }
+      }));
+      for (const got of results) jobs.push(...got);
       const existing=existingByApplyUrl();
       const approvedByAts={};
       for (const discovered of jobs) {
