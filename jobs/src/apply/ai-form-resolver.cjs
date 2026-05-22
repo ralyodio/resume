@@ -75,6 +75,14 @@ async function extractRequiredFields(page) {
     function cssPath(el) {
       if (!el) return '';
       if (el.id) return `#${CSS.escape(el.id)}`;
+      // Prefer simple name-only selector when unique
+      if (el.name) {
+        const tag = el.tagName.toLowerCase();
+        const sel = `${tag}[name="${el.name}"]`;
+        try {
+          if (document.querySelectorAll(sel).length === 1) return sel;
+        } catch {}
+      }
       const parts = [];
       let cur = el;
       while (cur && cur.nodeType === 1 && parts.length < 6) {
