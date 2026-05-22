@@ -137,14 +137,25 @@ async function searchAndApprove(){
 }
 async function applyApproved(jobs){
   let processed=0, submitted=0, review=0, failed=0;
+  // Group approved jobs by ATS so we can run one apply per ATS in parallel
+  // (different ATS sites don't share rate limits / sessions).
+  const byAts = new Map();
   for (const job of jobs) {
+    const ats = job.metadata?.ats || job.ats || 'unknown';
+    if (!byAts.has(ats)) byAts.set(ats, []);
+    byAts.get(ats).push(job);
+  }
+  const queues = Array.from(byAts.entries());
+  console.log(`APPLY_PARALLEL\tats_lanes=${queues.length}\ttotal_jobs=${jobs.length}`);
+
+  async function runOne(job) {
     const current=store.get(job.id) || job;
-    if (alreadyTerminal(current) && current.status !== 'approved') continue;
+    if (alreadyTerminal(current) && current.status !== 'approved') return;
     console.log(`APPLY_START\t${current.title}\t${current.company}\t${current.applyUrl||current.sourceUrl}`);
     try {
       const r=await openExternalApplication({job:current,dryRun:false,submit:true,storeDir:store.storeDir,headless:process.env.HERMES_PUPPETEER_HEADLESS !== '0' && process.env.HERMES_PUPPETEER_HEADLESS !== 'false',timeoutMs:Number(process.env.HERMES_PUPPETEER_NAV_TIMEOUT_MS || 60000)});
       console.log(`APPLY_RESULT\t${r.status}\t${current.title}\t${current.company}\t${r.ats||''}\t${r.url||''}\t${r.reason||''}`);
-      if(r.status==='submitted') { store.markApplied(current.id,{applyResult:r}); submitted++; }
+      if(r.status==='submitted' || r.status==='applied') { store.markApplied(current.id,{applyResult:r}); submitted++; }
       else if(r.status==='needs-human-review' || r.status==='unsupported') { store.transition(current.id,'needs-human-review',{applyResult:r}); review++; }
       else if(r.status==='failed') { store.markFailed(current.id,r.reason||'apply failed'); failed++; }
       else { store.transition(current.id,'needs-human-review',{applyResult:r}); review++; }
@@ -155,6 +166,13 @@ async function applyApproved(jobs){
     }
     processed++;
   }
+
+  // One worker per ATS, each draining its own queue serially.
+  await Promise.all(queues.map(async ([ats, queue]) => {
+    for (const job of queue) await runOne(job);
+    console.log(`APPLY_LANE_DONE\t${ats}\t${queue.length}`);
+  }));
+
   console.log(`BATCH_DONE\tprocessed=${processed}\tsubmitted=${submitted}\treview=${review}\tfailed=${failed}\tstore=${store.storeDir}`);
 }
 (async()=>{
