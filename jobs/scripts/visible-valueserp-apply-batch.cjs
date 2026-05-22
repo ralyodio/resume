@@ -139,7 +139,7 @@ async function applyApproved(jobs){
     if (alreadyTerminal(current) && current.status !== 'approved') continue;
     console.log(`APPLY_START\t${current.title}\t${current.company}\t${current.applyUrl||current.sourceUrl}`);
     try {
-      const r=await openExternalApplication({job:current,dryRun:false,submit:true,storeDir:store.storeDir,headless:false,timeoutMs:Number(process.env.HERMES_PUPPETEER_NAV_TIMEOUT_MS || 60000)});
+      const r=await openExternalApplication({job:current,dryRun:false,submit:true,storeDir:store.storeDir,headless:process.env.HERMES_PUPPETEER_HEADLESS !== '0' && process.env.HERMES_PUPPETEER_HEADLESS !== 'false',timeoutMs:Number(process.env.HERMES_PUPPETEER_NAV_TIMEOUT_MS || 60000)});
       console.log(`APPLY_RESULT\t${r.status}\t${current.title}\t${current.company}\t${r.ats||''}\t${r.url||''}\t${r.reason||''}`);
       if(r.status==='submitted') { store.markApplied(current.id,{applyResult:r}); submitted++; }
       else if(r.status==='needs-human-review' || r.status==='unsupported') { store.transition(current.id,'needs-human-review',{applyResult:r}); review++; }
