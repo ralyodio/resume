@@ -1811,7 +1811,9 @@ async function autoApplyExternal({job = {}, dryRun = true, submit = false, store
     }
   }
   if (dryRun || opts.dryTest || process.env.HERMES_ATS_DRY_TEST === '1') return {...base, status:'prepared', reason:'dry-run'};
-  const useStagehand = Boolean(process.env.BROWSERBASE_API_KEY) || process.env.HERMES_BROWSER_DRIVER === 'stagehand';
+  const useStagehand = process.env.HERMES_BROWSER_DRIVER === 'puppeteer'
+    ? false
+    : (Boolean(process.env.BROWSERBASE_API_KEY) || process.env.HERMES_BROWSER_DRIVER === 'stagehand');
   const applyFn = useStagehand ? stagehandBrowserApply : browserApply;
   const result = await applyFn({job,payload,opts:{...opts,submit,storeDir}});
   return {...base, ...result};

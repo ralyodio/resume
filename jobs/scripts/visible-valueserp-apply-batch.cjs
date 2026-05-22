@@ -135,7 +135,7 @@ async function applyApproved(jobs){
   console.log(`BATCH_DONE\tprocessed=${processed}\tsubmitted=${submitted}\treview=${review}\tfailed=${failed}\tstore=${store.storeDir}`);
 }
 (async()=>{
-  process.env.HERMES_PUPPETEER_HEADLESS='0';
+  process.env.HERMES_PUPPETEER_HEADLESS=process.env.HERMES_PUPPETEER_HEADLESS || '0';
   process.env.HERMES_LOAD_REPO_DOTENV='1';
   // Do not force every manual-review browser to stay open during a batch: orphaned
   // Chrome windows exhaust Puppeteer launch slots and cause WS endpoint timeouts.
