@@ -32,11 +32,30 @@ const PER_QUERY = Number(process.env.HERMES_JOBS_PER_SEARCH || 15);
 const MIN_SCORE = Number(process.env.HERMES_MIN_APPLY_SCORE || 70);
 const store = new JobStore(process.env.HERMES_JOBS_STORE || defaultHermesJobConfig.storeDir);
 
+function canonicalizeUrl(u) {
+  if (!u) return '';
+  try {
+    const url = new URL(u);
+    // Strip tracking/source params so the same job posting dedupes across runs
+    const drop = ['gh_src','gh_jid','utm_source','utm_medium','utm_campaign','utm_term','utm_content','source','ref','referrer','ref_source','jobsource','jbsrc','mode'];
+    for (const p of drop) url.searchParams.delete(p);
+    url.hash = '';
+    // Normalize trailing slash and case-insensitive host
+    url.host = url.host.toLowerCase();
+    let s = url.toString();
+    s = s.replace(/\/+$/, '');
+    return s;
+  } catch { return String(u).split('?')[0].replace(/\/+$/, ''); }
+}
 function existingByApplyUrl(){
   const map = new Map();
   for (const j of store.all()) {
     const url = j.applyUrl || j.sourceUrl;
-    if (url) map.set(url, j);
+    if (url) {
+      map.set(url, j);
+      const canon = canonicalizeUrl(url);
+      if (canon && canon !== url) map.set(canon, j);
+    }
   }
   return map;
 }
@@ -86,7 +105,8 @@ async function searchAndApprove(){
       const approvedByAts={};
       for (const discovered of jobs) {
         const url=discovered.applyUrl||discovered.sourceUrl;
-        const prior = url ? existing.get(url) : null;
+        const canonUrl = canonicalizeUrl(url);
+        const prior = url ? (existing.get(url) || existing.get(canonUrl)) : null;
         const job = prior && !alreadyTerminal(prior) ? {...prior, ...discovered, id: prior.id, status: prior.status} : discovered;
         const ats = job.metadata?.ats || 'unknown';
         if ((approvedByAts[ats] || 0) >= PER_QUERY) continue;
