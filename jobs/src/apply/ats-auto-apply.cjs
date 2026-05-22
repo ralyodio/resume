@@ -1308,11 +1308,13 @@ async function waitForSubmitToSettle(page, opts = {}) {
         const label = `${el.innerText || el.value || el.getAttribute('aria-label') || ''}`.toLowerCase();
         return /submitting|please wait|processing|saving|loading/.test(label) || el.getAttribute('aria-busy') === 'true';
       });
-      const success = /thank you|application submitted|application received|successfully submitted|we received your application|your application has been received|already applied/.test(text);
+      const alreadyApplied = /already applied to this job|already applied for this job|you've already applied|you have already applied|application already submitted|you already applied|looks like maybe you've already applied|previously applied to this position/.test(text);
+      const success = alreadyApplied || /thank you|application submitted|application received|successfully submitted|we received your application|your application has been received/.test(text);
       const spam = /flagged as possible spam|couldn't submit your application|we couldn't submit your application/.test(text);
-      const errors = /required|is invalid|please complete|application contains errors|there was an error/.test(text);
-      return {busy, success, spam, errors};
+      const errors = !alreadyApplied && /required|is invalid|please complete|application contains errors|there was an error/.test(text);
+      return {busy, success, spam, errors, alreadyApplied};
     }).catch(() => ({busy:false, success:false, spam:false, errors:false}));
+    if (state.alreadyApplied) return 'already-applied';
     if (state.success) return 'success';
     if (state.spam) return 'spam-blocked';
     if (!state.busy && state.errors) return 'errors';
@@ -1737,6 +1739,7 @@ async function browserApply({job,payload,opts}) {
         // Use SPA-aware waiting: try navigation, fall back to sleep for React-based ATS
         await page.waitForNavigation?.({waitUntil:'networkidle2',timeout:opts.timeoutMs||30000}).catch(()=>sleep(8000));
         const settleState = await waitForSubmitToSettle(page, opts);
+        if (settleState === 'already-applied') return {status:'applied', reason:'already-applied-detected'};
         if (settleState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
         // Post-submit form-validation errors: ATS shows "A response is required"
         // or "application contains errors". Fields exist but our filler missed them.
@@ -1823,6 +1826,7 @@ async function browserApply({job,payload,opts}) {
       if (!clickedAny) return {status:'needs-human-review', reason};
     }
     const settleState = await waitForSubmitToSettle(page, opts);
+    if (settleState === 'already-applied') return {status:'applied', reason:'already-applied-detected'};
     if (settleState === 'spam-blocked') return {status:'needs-human-review', reason:'spam-blocked'};
     const verifiedState = await waitForVerifiedSubmission(page, beforeUrl, opts);
     if (verifiedState === 'success' || verifiedState === true) return {status:'submitted', reason:'submission-verified'};
