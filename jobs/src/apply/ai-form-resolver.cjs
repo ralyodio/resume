@@ -2,7 +2,7 @@
 /**
  * AI form resolver. When ATS form filling produces unknown-required or
  * missing-required-common blockers, extract the visible required-but-empty
- * controls, send to Anthropic Claude with the user's resume + job context,
+ * controls, send to the configured LLM provider with the user's resume + job context,
  * apply the returned answers, and let the submit loop retry.
  *
  * Hard-skip categories (never answer, leave for manual review):
@@ -18,9 +18,10 @@
 const fs = require('fs');
 const path = require('path');
 const { request } = require('undici');
+const { applicantProfile } = require('../config/applicant.cjs');
 
 const RESUME_MD = process.env.RESUME_MD || '/home/ettinger/Desktop/resume/anthony.ettinger.resume4.md';
-const MODEL = process.env.HERMES_AI_RESOLVER_MODEL || 'claude-sonnet-4-5-20250929';
+const MODEL = process.env.HERMES_AI_RESOLVER_MODEL || (process.env.HERMES_AI_RESOLVER_PROVIDER === 'openai' ? 'gpt-5.5' : 'claude-sonnet-4-5-20250929');
 const RESOLUTIONS_LOG = process.env.HERMES_AI_RESOLUTIONS_LOG || '/tmp/hermes-remote-jobs/ai-resolutions.jsonl';
 
 let _resumeCache = null;
@@ -150,19 +151,29 @@ async function extractRequiredFields(page) {
 }
 
 function applicantContext() {
+  const p = applicantProfile();
   return {
-    name: 'Anthony Ettinger',
-    email: process.env.HERMES_APPLICANT_EMAIL || '',
-    phone: process.env.HERMES_APPLICANT_PHONE || '',
-    location: process.env.HERMES_APPLICANT_LOCATION || 'Los Gatos, CA, USA',
-    linkedin: process.env.HERMES_APPLICANT_LINKEDIN || '',
-    github: process.env.HERMES_APPLICANT_GITHUB || '',
-    website: process.env.HERMES_APPLICANT_WEBSITE || '',
-    salary: '$350,000 USD annually or $135/hour',
-    workAuth: 'US Citizen, authorized to work in the United States without visa sponsorship',
-    eeo: { gender: 'Male', race: 'White' },
+    name: p.name,
+    email: p.email,
+    phone: p.phone,
+    location: p.location,
+    city: p.city,
+    state: p.state,
+    country: p.country,
+    linkedin: p.linkedin,
+    github: p.github,
+    website: p.website,
+    salary: p.salaryText,
+    desiredSalary: p.desiredSalary,
+    hourlyRate: p.hourlyRate,
+    school: p.school,
+    workAuth: p.workAuthSummary,
+    requiresSponsorship: p.requiresSponsorship,
+    eeo: { gender: p.gender, race: p.race, veteran: p.veteran, disability: p.disability },
     pacificOverlap: 'Yes — based in Pacific Time',
-    aiCodingTools: 'Yes — production use of Claude Code, Cursor, OpenAI Codex',
+    aiCodingTools: `Yes — production use of ${p.aiCodingTools}`,
+    softwareExperience: p.softwareYears,
+    aiExperience: p.aiYears,
     ruby: 'Yes — hands-on production Ruby on Rails',
   };
 }
@@ -260,6 +271,40 @@ async function callClaude(messages) {
   return text;
 }
 
+async function callOpenAI(messages) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY not set');
+  const res = await request(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+      max_completion_tokens: 2000,
+    }),
+  });
+  if (res.statusCode !== 200) {
+    const body = await res.body.text();
+    throw new Error(`OpenAI API ${res.statusCode}: ${body.slice(0, 500)}`);
+  }
+  const data = await res.body.json();
+  return data.choices?.[0]?.message?.content || data.output_text || '';
+}
+
+function aiProvider() {
+  const explicit = (process.env.HERMES_AI_RESOLVER_PROVIDER || '').toLowerCase();
+  if (explicit) return explicit;
+  if (process.env.OPENAI_API_KEY && (!process.env.ANTHROPIC_API_KEY || /^gpt/i.test(MODEL))) return 'openai';
+  return 'anthropic';
+}
+
+async function callAI(messages) {
+  return aiProvider() === 'openai' ? callOpenAI(messages) : callClaude(messages);
+}
+
 function parseAnswers(text) {
   // Strip code fences if present
   const cleaned = text.replace(/```json\s*|```\s*$/g, '').trim();
@@ -345,7 +390,7 @@ async function applyAnswers(page, answers) {
 
 async function resolveBlockedForm({ page, job, payload, blockers, opts = {} }) {
   if (process.env.HERMES_AI_FORM_RESOLVER !== '1') return { resolved: false, reason: 'disabled' };
-  if (!process.env.ANTHROPIC_API_KEY) return { resolved: false, reason: 'no-api-key' };
+  if (aiProvider() === 'openai' ? !process.env.OPENAI_API_KEY : !process.env.ANTHROPIC_API_KEY) return { resolved: false, reason: 'no-api-key' };
   // Only act when blockers indicate unknown / missing-required fields
   const triggers = ['unknown-required', 'missing-required-common'];
   if (!blockers.some(b => triggers.some(t => b.includes(t)))) return { resolved: false, reason: 'no-trigger' };
@@ -363,7 +408,7 @@ async function resolveBlockedForm({ page, job, payload, blockers, opts = {} }) {
 
   const messages = buildPrompt({ resume, job: jobCtx, fields });
   let text = '';
-  try { text = await callClaude(messages); }
+  try { text = await callAI(messages); }
   catch (err) {
     appendLog({ jobId: job.id, error: err.message, blockers, fields });
     return { resolved: false, reason: 'api-error', error: err.message };

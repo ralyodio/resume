@@ -6,6 +6,7 @@ const { generateCoverLetter, normalizeCoverLetterText } = require('../cover/gene
 const { fetchText } = require('../util/fetch.cjs');
 const { stagehandBrowserApply } = require('./stagehand-apply.cjs');
 const { resolveBlockedForm } = require('./ai-form-resolver.cjs');
+const { applicantProfile } = require('../config/applicant.cjs');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const RESUME4_PATH = process.env.RESUME_PDF || path.join(REPO_ROOT, 'anthony.ettinger.resume4.pdf');
@@ -124,19 +125,7 @@ function defaultCoverLetterText() {
 }
 function buildApplicationPayload(job = {}, opts = {}) {
   if (opts.loadDotEnv || process.env.HERMES_LOAD_REPO_DOTENV === '1') loadRepoDotEnv();
-  const profile = {
-    name: opts.name || process.env.HERMES_APPLICANT_NAME || 'Anthony Ettinger',
-    email: opts.email || envFirst(['HERMES_APPLICANT_EMAIL','APPLICANT_EMAIL']),
-    phone: opts.phone || envFirst(['HERMES_APPLICANT_PHONE','APPLICANT_PHONE']),
-    phoneDigits: String(opts.phone || envFirst(['HERMES_APPLICANT_PHONE','APPLICANT_PHONE'])).replace(/\D+/g,'').replace(/^1(?=\d{10}$)/,''),
-    location: opts.location || envFirst(['HERMES_APPLICANT_LOCATION','APPLICANT_LOCATION']),
-    linkedin: opts.linkedin || envFirst(['HERMES_APPLICANT_LINKEDIN','APPLICANT_LINKEDIN']),
-    github: opts.github || envFirst(['HERMES_APPLICANT_GITHUB','APPLICANT_GITHUB']),
-    website: opts.website || envFirst(['HERMES_APPLICANT_WEBSITE','APPLICANT_WEBSITE']),
-    workAuth: opts.workAuth || envFirst(['HERMES_APPLICANT_WORK_AUTH','APPLICANT_WORK_AUTH']) || 'US Citizen',
-    requiresSponsorship: opts.requiresSponsorship || envFirst(['HERMES_APPLICANT_REQUIRES_SPONSORSHIP','APPLICANT_REQUIRES_SPONSORSHIP']) || 'no'
-  };
-  const [firstName, ...rest] = profile.name.split(/\s+/).filter(Boolean);
+  const profile = applicantProfile(opts);
   const ats = detectAts(job.applyUrl || job.sourceUrl);
   return {
     job,
@@ -144,9 +133,9 @@ function buildApplicationPayload(job = {}, opts = {}) {
     url: normalizeApplicationUrl(job.applyUrl || job.sourceUrl || '', ats),
     resumePath: opts.resumePath || job.resumePath || process.env.RESUME_PDF || RESUME4_PATH,
     coverPdfPath: opts.coverPdfPath || job.coverPdfPath || process.env.COVER_PDF || COVER4_PATH,
-    photoPath: opts.photoPath || job.photoPath || process.env.HERMES_APPLICANT_PHOTO || process.env.APPLICANT_PHOTO || PHOTO_PATH,
+    photoPath: opts.photoPath || job.photoPath || profile.photo || process.env.HERMES_APPLICANT_PHOTO || process.env.APPLICANT_PHOTO || PHOTO_PATH,
     coverLetter: normalizeCoverLetterText(opts.coverLetter || job.coverLetter || defaultCoverLetterText()),
-    profile: { ...profile, firstName: firstName || '', lastName: rest.join(' ') }
+    profile
   };
 }
 
@@ -407,15 +396,15 @@ async function uploadDocuments(page, {resumePath, coverPdfPath, photoPath}) {
 }
 async function fillKnownCustomQuestions(page, payload) {
   const answers = {
-    salaryAnnual: process.env.HERMES_APPLICANT_DESIRED_SALARY || '$350,000',
-    salaryNumeric: String(process.env.HERMES_APPLICANT_DESIRED_SALARY || '350000').replace(/[^0-9.]/g,'') || '350000',
-    hourlyRate: process.env.HERMES_APPLICANT_HOURLY_RATE || '$135/hour',
-    location: payload.profile.location || process.env.HERMES_APPLICANT_LOCATION || 'Los Gatos, CA, USA',
-    yearsAi: process.env.HERMES_APPLICANT_AI_YEARS || '5+ years',
-    yearsSoftware: process.env.HERMES_APPLICANT_SOFTWARE_YEARS || '20+ years',
-    notice: process.env.HERMES_APPLICANT_NOTICE_PERIOD || 'Available immediately / 2 weeks',
+    salaryAnnual: payload.profile.desiredSalary || '$350,000',
+    salaryNumeric: payload.profile.salaryNumeric || '350000',
+    hourlyRate: payload.profile.hourlyRate || '$135/hour',
+    location: payload.profile.location || 'Los Gatos, CA, USA',
+    yearsAi: payload.profile.aiYears || '5+ years',
+    yearsSoftware: payload.profile.softwareYears || '20+ years',
+    notice: payload.profile.noticePeriod || 'Available immediately / 2 weeks',
     portfolio: payload.profile.website || payload.profile.github || payload.profile.linkedin,
-    timeTracker: process.env.HERMES_APPLICANT_TIME_TRACKER_OK || 'Yes'
+    timeTracker: payload.profile.timeTrackerOk || 'Yes'
   };
   await page.evaluate((a) => {
     function visible(el){ return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length); }
@@ -451,22 +440,23 @@ async function fillProfileFieldsByLabel(page, payload) {
     email: p.email,
     phone: p.phone,
     phoneDigits: p.phoneDigits || String(p.phone || '').replace(/\D+/g,'').replace(/^1(?=\d{10}$)/,''),
-    location: p.location || process.env.HERMES_APPLICANT_LOCATION || 'Los Gatos, CA, USA',
-    city: process.env.HERMES_APPLICANT_CITY || 'Los Gatos',
-    state: process.env.HERMES_APPLICANT_STATE || 'CA',
-    postal: process.env.HERMES_APPLICANT_POSTAL || process.env.HERMES_APPLICANT_ZIP || '95032',
-    address: process.env.HERMES_APPLICANT_ADDRESS || process.env.HERMES_APPLICANT_LOCATION || 'Los Gatos, CA',
-    country: process.env.HERMES_APPLICANT_COUNTRY || 'United States',
+    location: p.location || 'Los Gatos, CA, USA',
+    city: p.city || 'Los Gatos',
+    state: p.state || 'CA',
+    postal: p.postal || '95032',
+    address: p.address || p.location || 'Los Gatos, CA',
+    country: p.country || 'United States',
     linkedin: p.linkedin,
     github: p.github,
     website: p.website || p.github || p.linkedin,
-    twitter: process.env.HERMES_APPLICANT_TWITTER || process.env.APPLICANT_TWITTER || '',
+    twitter: p.twitter || process.env.HERMES_APPLICANT_TWITTER || process.env.APPLICANT_TWITTER || '',
     coverLetter: payload.coverLetter,
     workAuth: p.workAuth,
-    salaryAnnual: process.env.HERMES_APPLICANT_DESIRED_SALARY || '$350,000',
-    salaryNumeric: String(process.env.HERMES_APPLICANT_DESIRED_SALARY || '350000').replace(/[^0-9.]/g,'') || '350000',
-    hourlyRate: process.env.HERMES_APPLICANT_HOURLY_RATE || '$135/hour',
-    start: process.env.HERMES_APPLICANT_START_DATE || 'Immediately'
+    school: p.school,
+    salaryAnnual: p.desiredSalary || '$350,000',
+    salaryNumeric: p.salaryNumeric || '350000',
+    hourlyRate: p.hourlyRate || '$135/hour',
+    start: p.startDate || 'Immediately'
   };
   await page.evaluate((a) => {
     function visible(el){ return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length); }
@@ -511,6 +501,7 @@ async function fillProfileFieldsByLabel(page, payload) {
       else if (/state|province/.test(label)) set(el, a.state);
       else if (/postal|zip/.test(label)) set(el, a.postal);
       else if (/country/.test(label) && !/country.*phone.*code/.test(label)) set(el, a.country);
+      else if (/school|university|college|institution/.test(label)) set(el, a.school);
       else if (/address\s*line\s*1|street/.test(label)) set(el, a.address);
       else if (/address|location|where.*based|current.*based/.test(label)) set(el, a.location);
       else if (/work.*auth|authorized.*work/.test(label)) set(el, a.workAuth);
@@ -566,17 +557,18 @@ async function selectOrFillWorkAuth(page, workAuth, requiresSponsorship) {
 }
 async function fillPlatformSpecificFields(page, payload) {
   const answers = {
-    country: process.env.HERMES_APPLICANT_COUNTRY || 'United States',
-    state: process.env.HERMES_APPLICANT_STATE || 'CA',
-    city: process.env.HERMES_APPLICANT_CITY || 'Los Gatos',
-    location: payload.profile.location || process.env.HERMES_APPLICANT_LOCATION || 'Los Gatos, CA, USA',
+    country: payload.profile.country || 'United States',
+    state: payload.profile.state || 'CA',
+    city: payload.profile.city || 'Los Gatos',
+    location: payload.profile.location || 'Los Gatos, CA, USA',
+    school: payload.profile.school || 'San Diego State University',
     authorized: 'Yes',
     sponsorship: 'No',
-    salaryAnnual: process.env.HERMES_APPLICANT_DESIRED_SALARY || '$350,000',
-    salaryNumeric: String(process.env.HERMES_APPLICANT_DESIRED_SALARY || '350000').replace(/[^0-9.]/g,'') || '350000',
-    hourlyRate: process.env.HERMES_APPLICANT_HOURLY_RATE || '$135/hour',
-    gender: 'Male',
-    race: 'White',
+    salaryAnnual: payload.profile.desiredSalary || '$350,000',
+    salaryNumeric: payload.profile.salaryNumeric || '350000',
+    hourlyRate: payload.profile.hourlyRate || '$135/hour',
+    gender: payload.profile.gender || 'Male',
+    race: payload.profile.race || 'White',
     decline: 'Prefer not to disclose',
     over18: 'Yes'
   };
@@ -612,14 +604,23 @@ async function fillPlatformSpecificFields(page, payload) {
       }
       return false;
     }
+    function isWorkAuthorizedQuestion(label){
+      return /(?:authorized|authorised|eligible|eligibility|legally|legal right|permitted|allowed|citizen|green card|work.*auth).*(?:work|employment|united states|u\.?s\.?|usa|50 states)|(?:work|employment).*(?:authorized|authorised|eligible|legally|legal right|permitted|allowed|citizen|green card)/.test(label);
+    }
+    function isSponsorshipQuestion(label){
+      if (!/(?:sponsor|sponsorship|visa|h-?1b)/.test(label)) return false;
+      if (isWorkAuthorizedQuestion(label) && /without\s+(?:visa\s+)?sponsor|without\s+sponsorship|without\s+requiring\s+sponsorship/.test(label)) return false;
+      return /(?:need|require|requires|requiring|seek|seeking|future|now|currently|will you|sponsor)/.test(label);
+    }
     for (const el of document.querySelectorAll('input, textarea')) {
       const label = labelFor(el);
       if (/country/.test(label)) setInput(el, a.country);
       else if (/state|province/.test(label)) setInput(el, a.state);
       else if (/city/.test(label)) setInput(el, a.city);
       else if (/location|address|where.*based/.test(label)) setInput(el, a.location);
-      else if (/sponsor|visa/.test(label)) setInput(el, a.sponsorship);
-      else if (/authorized|eligible.*work|work.*auth/.test(label)) setInput(el, a.authorized);
+      else if (/school|university|college|institution/.test(label)) setInput(el, a.school);
+      else if (isWorkAuthorizedQuestion(label)) setInput(el, a.authorized);
+      else if (isSponsorshipQuestion(label)) setInput(el, a.sponsorship);
       else if (/salary|compensation/.test(label)) setInput(el, ((el.type || '').toLowerCase() === 'number') ? a.salaryNumeric : a.salaryAnnual);
       else if (/hourly|rate/.test(label)) setInput(el, a.hourlyRate);
     }
@@ -627,8 +628,9 @@ async function fillPlatformSpecificFields(page, payload) {
       const label = labelFor(sel);
       if (/country/.test(label)) chooseSelect(sel, [/united states/i, /^usa$/i, /^us$/i]);
       else if (/state|province/.test(label)) chooseSelect(sel, [/^ca$/i, /california/i]);
-      else if (/sponsor|visa/.test(label)) chooseSelect(sel, [/^no$/i, /not.*require/i]);
-      else if (/authorized|eligible.*work|work.*auth/.test(label)) chooseSelect(sel, [/^yes$/i, /authorized/i, /citizen/i]);
+      else if (isWorkAuthorizedQuestion(label)) chooseSelect(sel, [/^yes$/i, /authorized/i, /citizen/i]);
+      else if (isSponsorshipQuestion(label)) chooseSelect(sel, [/^no$/i, /not.*require/i]);
+      else if (/school|university|college|institution/.test(label)) chooseSelect(sel, [/san diego state university/i, /\bsdsu\b/i]);
       else if (/gender/.test(label)) chooseSelect(sel, [/^male$/i, /\bmale\b/i]);
       else if (/race|ethnic/.test(label)) chooseSelect(sel, [/^white$/i, /\bwhite\b/i]);
       else if (/veteran|disability|demographic/.test(label)) chooseSelect(sel, [/prefer not/i, /decline/i, /do not wish/i, /not disclose/i]);
@@ -642,8 +644,8 @@ async function fillPlatformSpecificFields(page, payload) {
     }
     for (const group of radiosByName.values()) {
       const text = group.map(labelFor).join(' ');
-      const want = /sponsor|visa/.test(text) ? [/\bno\b/i]
-        : /authorized|eligible|work.*auth/.test(text) ? [/\byes\b/i, /authorized/i]
+      const want = isWorkAuthorizedQuestion(text) ? [/\byes\b/i, /authorized/i]
+        : isSponsorshipQuestion(text) ? [/\bno\b/i]
         : /over.*18|eighteen|adult/.test(text) ? [/\byes\b/i]
         : /gender/.test(text) ? [/^male$/i, /\bmale\b/i]
         : /race|ethnic/.test(text) ? [/^white$/i, /\bwhite\b/i]
@@ -660,12 +662,12 @@ async function fillRemainingRequiredFields(page, payload) {
   const fallback = {
     coverLetter: payload.coverLetter || 'Please see my attached resume and cover letter.',
     text: 'N/A',
-    yearsAi: process.env.HERMES_APPLICANT_AI_YEARS || '5+ years',
-    yearsSoftware: process.env.HERMES_APPLICANT_SOFTWARE_YEARS || '20+ years',
-    salaryAnnual: process.env.HERMES_APPLICANT_DESIRED_SALARY || '$350,000',
-    salaryNumeric: String(process.env.HERMES_APPLICANT_DESIRED_SALARY || '350000').replace(/[^0-9.]/g,'') || '350000',
-    hourlyRate: process.env.HERMES_APPLICANT_HOURLY_RATE || '$135/hour',
-    location: payload.profile.location || process.env.HERMES_APPLICANT_LOCATION || 'Los Gatos, CA, USA',
+    yearsAi: payload.profile.aiYears || '5+ years',
+    yearsSoftware: payload.profile.softwareYears || '20+ years',
+    salaryAnnual: payload.profile.desiredSalary || '$350,000',
+    salaryNumeric: payload.profile.salaryNumeric || '350000',
+    hourlyRate: payload.profile.hourlyRate || '$135/hour',
+    location: payload.profile.location || 'Los Gatos, CA, USA',
     recentAiProject: 'Recently I built an AI-assisted job application and resume automation system using LLMs, retrieval over job/resume context, browser automation, and conservative submission verification. My role covered the system design, Node.js/Puppeteer automation, prompt/data strategy, ATS adapters, queue state, tests, and production hardening.',
     dbieExample: 'I have changed my engineering process to make assumptions explicit, add accessibility-oriented checks, and provide human handoff when automation is uncertain. That helps avoid creating unnecessary barriers and makes communication clearer and more inclusive.'
   };
@@ -727,26 +729,26 @@ async function fillAdapterSpecificFields(page, payload) {
     email: payload.profile?.email || '',
     phone: payload.profile?.phone || '',
     phoneDigits: payload.profile?.phoneDigits || String(payload.profile?.phone || '').replace(/\D+/g,'').replace(/^1(?=\d{10}$)/,''),
-    location: payload.profile?.location || process.env.HERMES_APPLICANT_LOCATION || 'Los Gatos, CA, USA',
-    city: process.env.HERMES_APPLICANT_CITY || 'Los Gatos',
-    state: process.env.HERMES_APPLICANT_STATE || 'CA',
-    postal: process.env.HERMES_APPLICANT_POSTAL || process.env.HERMES_APPLICANT_ZIP || '95032',
-    address: process.env.HERMES_APPLICANT_ADDRESS || process.env.HERMES_APPLICANT_LOCATION || 'Los Gatos, CA',
-    country: process.env.HERMES_APPLICANT_COUNTRY || 'United States',
+    location: payload.profile?.location || 'Los Gatos, CA, USA',
+    city: payload.profile?.city || 'Los Gatos',
+    state: payload.profile?.state || 'CA',
+    postal: payload.profile?.postal || '95032',
+    address: payload.profile?.address || payload.profile?.location || 'Los Gatos, CA',
+    country: payload.profile?.country || 'United States',
     linkedin: payload.profile?.linkedin || '',
     github: payload.profile?.github || '',
     website: payload.profile?.website || payload.profile?.github || payload.profile?.linkedin || '',
     workAuth: payload.profile?.workAuth || 'US Citizen',
-    salaryAnnual: process.env.HERMES_APPLICANT_DESIRED_SALARY || '$350,000',
-    salaryNumeric: String(process.env.HERMES_APPLICANT_DESIRED_SALARY || '350000').replace(/[^0-9.]/g,'') || '350000',
-    hourlyRate: process.env.HERMES_APPLICANT_HOURLY_RATE || '$135/hour',
-    start: process.env.HERMES_APPLICANT_START_DATE || 'Immediately',
-    currentCompany: process.env.HERMES_APPLICANT_CURRENT_COMPANY || 'Independent Consultant',
+    salaryAnnual: payload.profile?.desiredSalary || '$350,000',
+    salaryNumeric: payload.profile?.salaryNumeric || '350000',
+    hourlyRate: payload.profile?.hourlyRate || '$135/hour',
+    start: payload.profile?.startDate || 'Immediately',
+    currentCompany: payload.profile?.currentCompany || 'Independent Consultant',
     coverLetter: payload.coverLetter || 'Please see my attached resume and cover letter.',
-    yearsAi: process.env.HERMES_APPLICANT_AI_YEARS || '5+ years',
-    yearsSoftware: process.env.HERMES_APPLICANT_SOFTWARE_YEARS || '20+ years',
-    yearsSoftwareNumeric: String(process.env.HERMES_APPLICANT_SOFTWARE_YEARS || '20').replace(/[^0-9.]/g,'') || '20',
-    aiTools: 'Claude, Claude Code, Cursor, Codex, OpenAI, Anthropic APIs, Gemini, GitHub Copilot, and custom LLM-powered automation workflows.',
+    yearsAi: payload.profile?.aiYears || '5+ years',
+    yearsSoftware: payload.profile?.softwareYears || '20+ years',
+    yearsSoftwareNumeric: String(payload.profile?.softwareYears || '20').replace(/[^0-9.]/g,'') || '20',
+    aiTools: payload.profile?.aiCodingTools || 'Claude, Claude Code, Cursor, Codex, OpenAI, Anthropic APIs, Gemini, GitHub Copilot, and custom LLM-powered automation workflows.',
     aiApps: 'I have built production AI-powered applications and automation systems using major LLM APIs, including OpenAI and Anthropic/Claude, with full-stack integrations, browser automation, data pipelines, and agentic workflows.',
     recentAiProject: 'Recently I built an AI-assisted job application and resume automation system that uses LLMs, retrieval over job/resume context, browser automation, and conservative submission verification. The system parses job posts, generates tailored cover letters, fills ATS forms with Puppeteer, detects blockers, and records manual handoff events so repeated blockers can become automated fixes. My specific contribution was end-to-end system design and implementation: Node.js automation, prompt/data strategy, ATS adapters, file generation, queue state, tests, and production hardening.',
     dbieExample: 'In recent product and automation work, I changed how I communicate and review systems by explicitly checking whether defaults, wording, and edge cases create unnecessary barriers for people. A concrete example is adding clearer review paths, accessibility-oriented form handling, and human handoff instead of forcing brittle automation when the system is uncertain. That changed my behavior from optimizing only for speed to also documenting assumptions, making failure states visible, and giving people a safer way to correct or complete the process.'
@@ -1877,4 +1879,4 @@ async function autoApplyExternal({job = {}, dryRun = true, submit = false, store
   return {...base, ...result};
 }
 
-module.exports = { RESUME4_PATH, COVER4_PATH, PHOTO_PATH, ATS_ADAPTERS, getAtsAdapter, detectAts, buildApplicationPayload, canAutoSubmit, classifyScreeningAnswer, extractAtsApplyUrlFromHtml, resolveAggregatorApplyUrl, autoApplyExternal, browserApply, findBlockers, fillAdapterSpecificFields, choosePromptDropdown, clickInitialApplyLink, clickProgressButton, clickFinalSubmit, companyFromJobPageData, refreshPayloadCoverLetterFromVerifiedEmployer, extractEmployerFromJobPage, collectManualHandoffSnapshot, installManualEventRecorder, manualHandoffEnabled };
+module.exports = { RESUME4_PATH, COVER4_PATH, PHOTO_PATH, ATS_ADAPTERS, getAtsAdapter, detectAts, buildApplicationPayload, canAutoSubmit, classifyScreeningAnswer, extractAtsApplyUrlFromHtml, resolveAggregatorApplyUrl, autoApplyExternal, browserApply, findBlockers, fillPlatformSpecificFields, fillAdapterSpecificFields, choosePromptDropdown, clickInitialApplyLink, clickProgressButton, clickFinalSubmit, companyFromJobPageData, refreshPayloadCoverLetterFromVerifiedEmployer, extractEmployerFromJobPage, collectManualHandoffSnapshot, installManualEventRecorder, manualHandoffEnabled };

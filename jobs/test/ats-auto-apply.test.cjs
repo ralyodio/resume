@@ -21,6 +21,7 @@ const {
   ATS_ADAPTERS,
   getAtsAdapter,
   fillAdapterSpecificFields,
+  fillPlatformSpecificFields,
   choosePromptDropdown,
   classifyScreeningAnswer,
   companyFromJobPageData,
@@ -82,6 +83,61 @@ test('adapter-specific filler clicks Workable div role radio wrappers with hidde
   await fillAdapterSpecificFields(page, { ats:'workable', profile:{} });
   assert.equal(yesInput.checked, true);
   assert.equal(noInput.checked, false);
+});
+
+test('application payload uses central resume.config with env overrides', () => {
+  const oldSchool = process.env.HERMES_APPLICANT_SCHOOL;
+  delete process.env.HERMES_APPLICANT_SCHOOL;
+  try {
+    const payload = buildApplicationPayload({}, { loadDotEnv:false });
+    assert.equal(payload.profile.school, 'San Diego State University');
+    assert.equal(payload.profile.city, 'Los Gatos');
+    assert.equal(payload.profile.desiredSalary, '$350,000');
+    process.env.HERMES_APPLICANT_SCHOOL = 'Configured Test University';
+    assert.equal(buildApplicationPayload({}, { loadDotEnv:false }).profile.school, 'Configured Test University');
+  } finally {
+    if (oldSchool == null) delete process.env.HERMES_APPLICANT_SCHOOL;
+    else process.env.HERMES_APPLICANT_SCHOOL = oldSchool;
+  }
+});
+
+test('platform filler fills applicant school from profile config', async () => {
+  const school = { tagName:'INPUT', type:'text', name:'school', id:'school', value:'', disabled:false, readOnly:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], getAttribute:()=>'', closest:()=>({innerText:'School*'}), dispatchEvent:()=>{} };
+  const page = { evaluate: async (fn, a) => {
+    global.HTMLTextAreaElement = { prototype: {} };
+    global.HTMLInputElement = { prototype: {} };
+    global.Event = class { constructor(){} };
+    global.CSS = { escape: (s) => s };
+    global.document = {
+      querySelector: () => null,
+      getElementById: () => null,
+      querySelectorAll: (selector) => selector === 'input, textarea' ? [school] : []
+    };
+    try { return fn(a); } finally { delete global.document; delete global.CSS; }
+  }};
+  await fillPlatformSpecificFields(page, { profile: buildApplicationPayload({}, { loadDotEnv:false }).profile });
+  assert.equal(school.value, 'San Diego State University');
+});
+
+test('platform filler answers combined authorization/sponsorship radio as yes for work authorization', async () => {
+  const container = { innerText:'Are you legally authorized to work in The USA without sponsorship? Yes No' };
+  const yes = { type:'radio', name:'auth', id:'auth_yes', value:'Yes', checked:false, disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], click(){ this.checked=true; }, getAttribute:()=>'', closest:()=>container };
+  const no = { type:'radio', name:'auth', id:'auth_no', value:'No', checked:false, disabled:false, offsetWidth:10, offsetHeight:10, getClientRects:()=>[1], click(){ this.checked=true; }, getAttribute:()=>'', closest:()=>container };
+  const page = { evaluate: async (fn, a) => {
+    global.HTMLTextAreaElement = { prototype: {} };
+    global.HTMLInputElement = { prototype: {} };
+    global.Event = class { constructor(){} };
+    global.CSS = { escape: (s) => s };
+    global.document = {
+      querySelector: () => null,
+      getElementById: () => null,
+      querySelectorAll: (selector) => selector === 'input[type=radio]' ? [yes,no] : []
+    };
+    try { return fn(a); } finally { delete global.document; delete global.CSS; }
+  }};
+  await fillPlatformSpecificFields(page, { profile:{ location:'Los Gatos, CA, USA' } });
+  assert.equal(yes.checked, true);
+  assert.equal(no.checked, false);
 });
 
 test('generic screening classifier answers by question meaning, not exact hardcoded wording', () => {
@@ -403,25 +459,16 @@ test('detectAts identifies supported ATS and email URLs',()=>{
   assert.equal(detectAts('https://not-ashby.example.com/jobs/123'), 'unknown');
 });
 
-test('buildApplicationPayload uses resume4/cover4 PDFs and does not hallucinate missing email',()=>{
-  const oldEmail=process.env.HERMES_APPLICANT_EMAIL;
-  const oldPhone=process.env.HERMES_APPLICANT_PHONE;
-  delete process.env.HERMES_APPLICANT_EMAIL;
-  delete process.env.HERMES_APPLICANT_PHONE;
-  try {
-    const payload=buildApplicationPayload({title:'AI Engineer',company:'Acme',coverLetter:'hello'});
-    assert.equal(payload.resumePath, RESUME4_PATH);
-    assert.equal(path.basename(payload.resumePath), 'anthony.ettinger.resume4.pdf');
-    assert.equal(payload.coverPdfPath, COVER4_PATH);
-    assert.equal(path.basename(payload.coverPdfPath), 'anthony.ettinger.cover4.pdf');
-    assert.equal(payload.profile.name, 'Anthony Ettinger');
-    assert.equal(payload.profile.email, '');
-    assert.equal(payload.profile.phone, '');
-    assert.equal(payload.coverLetter, 'hello');
-  } finally {
-    if (oldEmail === undefined) delete process.env.HERMES_APPLICANT_EMAIL; else process.env.HERMES_APPLICANT_EMAIL=oldEmail;
-    if (oldPhone === undefined) delete process.env.HERMES_APPLICANT_PHONE; else process.env.HERMES_APPLICANT_PHONE=oldPhone;
-  }
+test('buildApplicationPayload uses resume4/cover4 PDFs and central applicant profile defaults',()=>{
+  const payload=buildApplicationPayload({title:'AI Engineer',company:'Acme',coverLetter:'hello'}, { loadDotEnv:false });
+  assert.equal(payload.resumePath, RESUME4_PATH);
+  assert.equal(path.basename(payload.resumePath), 'anthony.ettinger.resume4.pdf');
+  assert.equal(payload.coverPdfPath, COVER4_PATH);
+  assert.equal(path.basename(payload.coverPdfPath), 'anthony.ettinger.cover4.pdf');
+  assert.equal(payload.profile.name, 'Anthony Ettinger');
+  assert.equal(payload.profile.email, 'anthony@profullstack.com');
+  assert.equal(payload.profile.phone, '+1-408-656-2473');
+  assert.equal(payload.coverLetter, 'hello');
 });
 
 test('buildApplicationPayload normalizes Lever job pages to the direct /apply form URL',()=>{
