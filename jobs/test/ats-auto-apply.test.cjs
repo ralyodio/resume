@@ -428,7 +428,7 @@ test('adapter-specific filler selects user-provided EEO gender and race when ava
 });
 
 test('ATS adapter registry defines per-site browser behavior', () => {
-  for (const ats of ['greenhouse','lever','applytojob','breezy','workable','ashby','icims']) {
+  for (const ats of ['greenhouse','lever','applytojob','breezy','workable','ashby','icims','fedstack']) {
     assert.equal(getAtsAdapter(ats).id, ats);
   }
   assert.equal(typeof ATS_ADAPTERS.applytojob.allowFinalSubmit, 'function');
@@ -453,6 +453,7 @@ test('detectAts identifies supported ATS and email URLs',()=>{
   assert.equal(detectAts('https://careers-company.icims.com/jobs/123/job'), 'icims');
   assert.equal(detectAts('https://jobs.jobvite.com/company/job/123'), 'jobvite');
   assert.equal(detectAts('https://company.recruiterbox.com/jobs/123'), 'recruiterbox');
+  assert.equal(detectAts('https://jobs.fedstack.com/jobs/a11Jw000006HxxtIAC'), 'fedstack');
   assert.equal(detectAts('mailto:jobs@example.com'), 'email');
   assert.equal(detectAts('https://example.com/apply'), 'unknown');
   assert.equal(detectAts('https://example.com/jobs/greenhouse-role'), 'unknown');

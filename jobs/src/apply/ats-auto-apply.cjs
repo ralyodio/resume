@@ -12,7 +12,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const RESUME4_PATH = process.env.RESUME_PDF || path.join(REPO_ROOT, 'anthony.ettinger.resume4.pdf');
 const COVER4_PATH = process.env.COVER_PDF || path.join(REPO_ROOT, 'anthony.ettinger.cover4.pdf');
 const PHOTO_PATH = process.env.PHOTO_PATH || path.join(REPO_ROOT, 'anthony.ettinger.photo.jpeg');
-const SUPPORTED_ATS = new Set(['greenhouse','lever','ashby','workable','rippling','smartrecruiters','workday','bamboohr','applytojob','breezy','icims','jobvite','recruiterbox','adp','email']);
+const SUPPORTED_ATS = new Set(['greenhouse','lever','ashby','workable','rippling','smartrecruiters','workday','bamboohr','applytojob','breezy','icims','jobvite','recruiterbox','adp','fedstack','email']);
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function safeUrl(url) { try { return new URL(String(url || '')); } catch { return null; } }
@@ -36,6 +36,7 @@ function detectAts(url) {
   if (hostIs('jobvite.com')) return 'jobvite';
   if (hostIs('recruiterbox.com')) return 'recruiterbox';
   if (hostIs('workforcenow.adp.com') || hostIs('adp.com') || hostIs('jobs.adp.com')) return 'adp';
+  if (hostIs('jobs.fedstack.com')) return 'fedstack';
   return 'unknown';
 }
 

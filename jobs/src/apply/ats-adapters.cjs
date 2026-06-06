@@ -102,6 +102,14 @@ const ATS_ADAPTERS = {
     finalSubmitTexts: [/^submit$/i, /^submit application$/i, /^apply$/i],
     successTexts: [/application submitted/i, /thank you for applying/i, /application received/i, /successfully applied/i],
   },
+  fedstack: {
+    id: 'fedstack',
+    name: 'Fedstack',
+    initialApplyTexts: [/^apply now$/i, /^apply$/i],
+    finalSubmitSelectors: ['button[type=submit]', 'button'],
+    finalSubmitTexts: [/^submit application$/i, /^submit$/i, /^apply$/i],
+    successTexts: [/application submitted/i, /thank you for applying/i, /application received/i, /successfully applied/i],
+  },
   email: { id: 'email', name: 'Email' },
 };
 
