@@ -211,19 +211,25 @@ function generateExperienceHTML(content) {
  */
 function generateSkillsHTML(content) {
   const skills = [];
-  
+
   for (const line of content) {
     if (line.startsWith('- ')) {
-      const skillLine = line.substring(2).trim();
-      const colonIndex = skillLine.indexOf(':');
-      
-      if (colonIndex > 0) {
-        const label = skillLine.substring(0, colonIndex).trim();
-        const items = skillLine.substring(colonIndex + 1).trim();
-        skills.push(`<strong>${renderInline(label)}:</strong> ${renderInline(items)}`);
-      } else {
-        skills.push(renderInline(skillLine));
+      let skillLine = line.substring(2).trim();
+
+      // If the label isn't already emphasized in markdown, bold everything up
+      // to and including the first colon so it renders as a heading. When the
+      // source already uses bold (**Languages**: or **Languages:**), leave it
+      // alone and let marked render it — splitting on the colon manually breaks
+      // the bold markers apart into literal asterisks.
+      const hasBold = /\*\*|__/.test(skillLine);
+      if (!hasBold) {
+        const colonIndex = skillLine.indexOf(':');
+        if (colonIndex > 0) {
+          skillLine = `**${skillLine.substring(0, colonIndex + 1)}**${skillLine.substring(colonIndex + 1)}`;
+        }
       }
+
+      skills.push(renderInline(skillLine));
     }
   }
   
