@@ -18,7 +18,6 @@ AI-native full-stack engineer and founder with 20+ years shipping production sys
 - **CoinPayPortal** — Non-custodial crypto payment gateway. Merchant accounts, checkout flows, webhooks, escrow, reputation systems.
 - **Infernet Protocol** — Decentralized AI inference network. Distributed compute coordination, model routing, vLLM deployment.
 - **Avenasea** — Co-founded, served as CTO. Corporate travel platform.
-- **husko.money** — NFT project on Polygon. Front-end to contract integration.
 
 ## Core Skills
 

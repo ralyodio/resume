@@ -250,16 +250,21 @@ strong {
     -webkit-print-color-adjust: exact;
   }
 
+  .header {
+    padding-bottom: 0.11in;
+    margin-bottom: 0.13in;
+  }
+
   .section {
-    margin-bottom: 0.135in;
+    margin-bottom: 0.085in;
   }
 
   .section h2 {
-    margin-bottom: 0.055in;
+    margin-bottom: 0.045in;
   }
 
   .experience-entry {
-    margin-bottom: 0.095in;
+    margin-bottom: 0.05in;
   }
 
   a {
