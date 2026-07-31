@@ -108,8 +108,18 @@ function generateContactHTML(contactInfo) {
     const label = rawLabel.trim().toLowerCase();
     const value = rest.join(':').trim();
 
+    // When the source writes the value as a markdown link —
+    // `GitHub: [github.com/ralyodio](https://github.com/ralyodio)` —
+    // stripInlineMarkdown keeps the link text and drops the URL. Recover the
+    // real target from the original line so the href doesn't end up
+    // protocol-less (and therefore relative/broken).
+    const originalValue = info.split(':').slice(1).join(':').trim();
+    const linkMatch = originalValue.match(/\[([^\]]+)\]\(([^)]+)\)/);
+    const href = linkMatch ? linkMatch[2].trim() : value;
+    const text = linkMatch ? linkMatch[1].trim() : value;
+
     if (label === 'email') {
-      return `<span><a href="mailto:${value}">${value}</a></span>`;
+      return `<span><a href="mailto:${text}">${text}</a></span>`;
     }
 
     if (label === 'phone') {
@@ -117,7 +127,8 @@ function generateContactHTML(contactInfo) {
     }
 
     if (['web', 'github', 'linkedin'].includes(label)) {
-      return `<span><a href="${value}" target="_blank">${value.replace(/^https?:\/\//, '')}</a></span>`;
+      const url = /^https?:\/\//i.test(href) ? href : `https://${href}`;
+      return `<span><a href="${url}" target="_blank">${text.replace(/^https?:\/\//, '')}</a></span>`;
     }
 
     if (['location', 'work authorization'].includes(label)) {
