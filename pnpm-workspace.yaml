@@ -1,2 +1,5 @@
 allowBuilds:
+  '@google/genai': false
+  bufferutil: false
+  protobufjs: false
   puppeteer: true
