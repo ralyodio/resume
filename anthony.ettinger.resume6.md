@@ -5,6 +5,7 @@
 - Web: https://profullstack.com
 - GitHub: https://github.com/profullstack
 - LinkedIn: https://linkedin.com/in/anthonyettinger
+- Podcast: https://otr.podcast.pit.world
 - Location: Los Gatos, CA
 - Work Authorization: US Citizen
 
@@ -21,6 +22,7 @@ Agentic engineer and founder with 20+ years shipping production systems in Silic
 - **x402 toolkit** — Crawler paywall gateway ported to 7 languages and rolled out across the product fleet (32 PRs in one day), plus a Node payer client on Base.
 - **LogicSRC open specs** (logicsrc.com) — OpenProfile, OpenResume, OpenListing and related plain-Markdown specs for portable profiles and listings, with reference implementations.
 - **RSS Amplifier, NicheDB, TronBrowser, HQTUI, sh1pt** — open web feed directory, niche data APIs, a privacy browser with its own push service, a zero-dependency TypeScript terminal UI library, and a multi-target ship/deploy CLI.
+- **Off The Record** (otr.podcast.pit.world) — My long-form podcast on fleet engineering, agentic coding bots and building a new internet. An AI host interviews me over a recorded call; episodes are cleaned, titled and published automatically.
 - **Avenasea** — Co-founded, served as CTO. Corporate travel platform.
 
 ## Core Skills
