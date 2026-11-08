@@ -24,11 +24,11 @@ I'm building a number of projects that are ready for users today. A quick tour b
 - **CoinPayPortal** — http://coinpayportal.com · non-custodial crypto payment gateway; Stripe-like integration with webhooks and multi-business support.
 - **qrypt.chat** — http://qrypt.chat · free quantum-resistant chat application.
 - **DisruptHire** — http://disrupthire.com · AI-assisted engineer consulting services.
-- **SaaSRow** — http://saasrow.com · link directory for SaaS and AI.
+- **SaaSRow** — https://saasrow.pwa.pit.world · link directory for SaaS and AI.
 - **UGig** — http://ugig.net · connect with skilled engineers and workers who leverage AI tools. Free to browse, free to apply.
 - **CryptoShot** — http://cryptoshot.space · Ethereum jackpot game; connect your wallet and take a shot. Open-source contract.
 - **PostAmmo** — https://postammo.com · viral content idea generator for social media posters. Native mobile, PWA, and web-extension apps.
-- **IceMap** — http://icemap.app · anonymous, real-time incident reporting so communities stay informed about what's happening around them.
+- **IceMap** — https://icemap.pwa.pit.world · anonymous, real-time incident reporting so communities stay informed about what's happening around them.
 - **PairUX** — http://pairux.com · (coming soon) collaborative screen sharing with simultaneous remote mouse and keyboard control. Like Screenhero, but open source.
 
 ## Get in Touch
